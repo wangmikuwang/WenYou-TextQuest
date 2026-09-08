@@ -279,6 +279,10 @@ class SettingsViewModel(container: WenYouApp.AppContainer) : ViewModel() {
     fun setDynamic(on: Boolean) = store.setDynamicColor(on)
     fun setDefaultProvider(id: String?) = store.setDefaultProvider(id)
 
+    /** 崩溃日志保存目录（SAF tree URI）。 */
+    fun setCrashDir(uri: String?) { store.crashDirUri = uri }
+    fun crashDir(): String? = store.crashDirUri
+
     fun setMessage(text: String) {
         _message.value = text
     }

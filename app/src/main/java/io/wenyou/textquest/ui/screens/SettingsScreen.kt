@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import io.wenyou.textquest.BuildConfig
+import io.wenyou.textquest.CrashLog
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.ui.HubScaffold
 import io.wenyou.textquest.ui.common.AppDropdown
@@ -90,6 +91,15 @@ fun SettingsScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
             if (text == null) vm.setMessage("读取文件失败")
             else vm.importString(text)
         }
+    }
+
+    // 选择崩溃日志保存目录（系统“文档/Documents”）
+    val crashDirPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        vm.setCrashDir(uri.toString())
+        vm.setMessage("崩溃日志目录已设为「Documents」")
     }
 
     HubScaffold(
@@ -193,6 +203,30 @@ fun SettingsScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
                             importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
                         }) { Text("导入备份") }
                     }
+                }
+            }
+
+            item {
+                TonalCard {
+                    Text("崩溃日志保存位置", style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.height(6.dp))
+                    val dir = vm.crashDir()
+                    Text(if (dir != null) "已设置：$dir" else "默认：应用私有目录（可用“系统文档”按钮选择 Documents 目录，便于在手机“文档”里直接查看 crash.log）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(onClick = { crashDirPicker.launch(null) }) { Text("选择系统文档目录") }
+                        Button(onClick = {
+                            val t = "测试日志 time=${System.currentTimeMillis()}\nversion=${BuildConfig.VERSION_NAME}\n"
+                            CrashLog.write(context, t, vm.crashDir())
+                            vm.setMessage("已写入测试日志（请到所选 Documents 目录查看 crash.log）")
+                        }) { Text("写入测试日志") }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text("说明：普通崩溃日志与测试日志都会写入所选目录的 crash.log。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline)
                 }
             }
 

@@ -36,17 +36,29 @@ class WenYouApp : Application() {
         super.onCreate()
         container = AppContainer(this)
         installCrashLogger()
-        if (BuildConfig.BUILTIN_CONTENT) {
-            appScope.launch {
-                seedSamplesIfNeeded()
-                applyPresetAssets()
+        appScope.launch {
+            when {
+                // 完整版：内置示例 + LGBT/多题材预设
+                BuildConfig.BUILTIN_CONTENT -> {
+                    seedSamplesIfNeeded()
+                    applyPresetAssets(listOf(
+                        "presets/romance-presets.json",
+                        "presets/wenyou-extended-presets.json"
+                    ))
+                }
+                // 纯净版：内置一套“非 LGBT”剧情与角色
+                BuildConfig.BARE_CONTENT -> {
+                    applyPresetAssets(listOf("presets/wenyou-bare-presets.json"))
+                }
             }
         }
     }
 
     /**
-     * 崩溃日志兜底：任何未捕获异常都被写进「内部存储 crash.log 与外部目录 crash.log」，
-     * 方便在真机上定位闪退原因（尤其 Android 15+/17 行为差异）。
+     * 崩溃日志兜底：任何未捕获异常都会写入
+     *  - 内部存储 files/crash.log
+     *  - 外部应用目录 getExternalFilesDir()/crash.log
+     *  - 若用户已在设置里指定「系统文档目录」，也写入该 Documents 目录
      */
     private fun installCrashLogger() {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
@@ -61,10 +73,7 @@ class WenYouApp : Application() {
                     append("thread=").append(thread?.name).append('\n')
                     append(sw.toString())
                 }
-                val dirs = listOfNotNull(filesDir, getExternalFilesDir(null)).distinct()
-                for (dir in dirs) {
-                    try { File(dir, "crash.log").writeText(text) } catch (_: Throwable) {}
-                }
+                CrashLog.write(this, text, container.settings.crashDirUri)
             } catch (_: Throwable) {
             }
             previous?.uncaughtException(thread, throwable) ?: throw throwable
@@ -88,11 +97,8 @@ class WenYouApp : Application() {
      * 把 assets/presets/ 下的题材预设包（BL/伪百合/男娘/第四爱/娱乐圈ABO 等）
      * 自动并入资料库：按 id 去重、只补不覆盖。升级安装也能补到新版本新增的预设。
      */
-    private suspend fun applyPresetAssets() {
-        val presetFiles = listOf(
-            "presets/romance-presets.json",
-            "presets/wenyou-extended-presets.json"
-        )
+    /** 逐个资源去重合并（按 id 只补不覆盖）。 */
+    private suspend fun applyPresetAssets(presetFiles: List<String>) {
         for (name in presetFiles) {
             try {
                 applyPresetAsset(name)

@@ -35,7 +35,7 @@ android {
         }
     }
 
-    // 两个可独立安装的版本：full（含内置预设剧情/角色）/ bare（纯净版，无任何内置内容）
+    // 两个可独立安装的版本：full（含内置 LGBT/多题材预设）/ bare（内置一套“非 LGBT”剧情与角色）
     flavorDimensions += "content"
     productFlavors {
         create("bare") {
@@ -43,12 +43,14 @@ android {
             applicationIdSuffix = ".lite"
             versionNameSuffix = "-bare"
             buildConfigField("boolean", "BUILTIN_CONTENT", "false")
+            buildConfigField("boolean", "BARE_CONTENT", "true")
         }
         create("full") {
             dimension = "content"
             applicationIdSuffix = ".full"
             versionNameSuffix = "-full"
             buildConfigField("boolean", "BUILTIN_CONTENT", "true")
+            buildConfigField("boolean", "BARE_CONTENT", "false")
         }
     }
 
@@ -105,6 +107,7 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.documentfile)
     implementation(libs.okhttp)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)

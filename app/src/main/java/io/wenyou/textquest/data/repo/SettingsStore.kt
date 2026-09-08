@@ -52,10 +52,15 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_SEEDED, false)
         set(value) = prefs.edit().putBoolean(KEY_SEEDED, value).apply()
 
-    /** 内置「恋爱题材预设包」是否已合并进资料库。 */
+    /** 内置「题材预设包」是否已合并进资料库。 */
     var presetsApplied: Boolean
         get() = prefs.getBoolean(KEY_PRESETS, false)
         set(value) = prefs.edit().putBoolean(KEY_PRESETS, value).apply()
+
+    /** 崩溃日志保存目录（SAF 授权的 Documents tree URI；空 = 未选择）。 */
+    var crashDirUri: String?
+        get() = prefs.getString(KEY_CRASH_DIR, null)
+        set(value) = prefs.edit().putString(KEY_CRASH_DIR, value).apply()
 
     var compactCards: Boolean
         get() = prefs.getBoolean(KEY_COMPACT, false)
@@ -67,6 +72,7 @@ class SettingsStore(context: Context) {
         const val KEY_PROVIDER = "default_provider"
         const val KEY_SEEDED = "seeded_v1"
         const val KEY_PRESETS = "presets_applied_v1"
+        const val KEY_CRASH_DIR = "crash_dir_uri"
         const val KEY_COMPACT = "compact_cards"
     }
 }
