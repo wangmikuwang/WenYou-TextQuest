@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 自适应图标前景：对话气泡 + 文字行，Material 圆角形态 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 气泡主体 -->
+    <path
+        android:fillColor="#FEF7FF"
+        android:pathData="M29,46 a9,9 0 0 1 9,-9 h32 a9,9 0 0 1 9,9 v14 a9,9 0 0 1 -9,9 h-19 l-10,10 v-10 h-3 a9,9 0 0 1 -9,-9 z" />
+    <!-- 文字行 1 -->
+    <path
+        android:pathData="M40,51 L70,51"
+        android:strokeColor="#4A4458"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+    <!-- 文字行 2 -->
+    <path
+        android:pathData="M40,61 L61,61"
+        android:strokeColor="#4A4458"
+        android:strokeWidth="5"
+        android:strokeLineCap="round" />
+</vector>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 纯 Compose 应用：系统窗口仅承担启动帧，配色全部由 Material You 主题在 Compose 内接管 -->
+    <style name="Theme.WenYouTextQuest" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+</resources>
