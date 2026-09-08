@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -96,7 +97,8 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
                                 } catch (_: Throwable) {
                                     null
                                 }
-                                if (piece != null && piece.isNotEmpty()) {
+                                // JsonNull 也是 JsonPrimitive，content 会返回 "null"：需过滤，避免无限 null 循环
+                                if (piece != null && piece.isNotEmpty() && piece != "null") {
                                     full.append(piece)
                                     onDelta(piece)
                                 }
@@ -280,21 +282,25 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
                 val delta = choice["delta"]?.jsonObject
                 val text = delta?.get("content")
                 when (text) {
-                    is JsonPrimitive -> text.content
+                    is JsonNull -> null
+                    is JsonPrimitive -> text.content.takeUnless { it == "null" }
                     is JsonArray -> text.joinToString("") { (it as? JsonPrimitive)?.content.orEmpty() }
                     else -> null
                 }
             }
             ProviderKind.ANTHROPIC -> {
                 if (root["type"]?.jsonPrimitive?.content != "content_block_delta") return null
-                (root["delta"]?.jsonObject?.get("text") as? JsonPrimitive)?.content
+                val t = root["delta"]?.jsonObject?.get("text")
+                if (t == null || t is JsonNull) return null
+                (t as? JsonPrimitive)?.content?.takeUnless { it == "null" }
             }
             ProviderKind.GEMINI -> {
                 val candidates = root["candidates"]?.jsonArray ?: return null
                 if (candidates.isEmpty()) return null
                 val parts = candidates[0].jsonObject["content"]?.jsonObject?.get("parts")?.jsonArray ?: return null
-                val text = parts.firstOrNull()?.jsonObject?.get("text") as? JsonPrimitive
-                text?.content
+                val el = parts.firstOrNull()?.jsonObject?.get("text")
+                if (el == null || el is JsonNull) return null
+                (el as? JsonPrimitive)?.content?.takeUnless { it == "null" }
             }
         }
     }
