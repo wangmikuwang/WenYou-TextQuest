@@ -69,6 +69,25 @@ class AiDirector(private val client: ChatClient) {
         }
     }
 
+    /** 角色当前状态（好恶/身体/穿着/氛围值等）注入上下文。 */
+    private fun charStatesSnapshot(story: Story, characters: List<CharacterData>, state: SessionState): String = buildString {
+        val bound = characters.filter { it.id in story.characterIds }
+        if (bound.isEmpty()) return ""
+        append("\n【角色当前状态】\n")
+        for (c in bound) {
+            val st = state.characterStates[c.id] ?: continue
+            val ms = io.wenyou.textquest.data.model.CharacterMetrics.defs.mapNotNull { d ->
+                val v = st.metrics[d.key]
+                if (v != null) "${d.icon}${d.label}${GameEngine.formatNumber(io.wenyou.textquest.data.model.CharacterMetrics.clamp(v))}" else null
+            }
+            append("· ${c.name}：").append(if (ms.isNotEmpty()) ms.joinToString("　") else "（无）")
+            if (st.flags.isNotEmpty()) append("　标记：${st.flags.joinToString("、")}")
+            if (st.description.isNotBlank()) append("　穿着/外观：${st.description}")
+            append("\n")
+        }
+        append("（请让角色言行贴合以上状态；氛围数值只影响语气与暧昧尺度，不写露骨内容。）\n")
+    }
+
     /** 取最近若干条剧情（角色台词/旁白/玩家选择），组成用户消息正文。 */
     private fun contextTail(story: Story, state: SessionState, tailOverride: String? = null): String {
         val sb = StringBuilder()
@@ -115,7 +134,7 @@ class AiDirector(private val client: ChatClient) {
                 append("默认每个选项都让场景自然延续。\n")
             }
         }
-        val user = contextTail(story, state) + stateSnapshot(state)
+        val user = contextTail(story, state) + stateSnapshot(state) + charStatesSnapshot(story, characters, state)
         val raw = client.streamText(profile, system, user, ChatOptions(story.ai.temperature, story.ai.maxTokens), onDelta)
         return parseScene(raw)
     }
@@ -144,7 +163,7 @@ class AiDirector(private val client: ChatClient) {
             append("输出必须是一个 JSON 对象：{\"text\":\"本次推进的正文（含你扮演角色的台词）\",\"choices\":[{\"text\":\"玩家可能的下一步选项（2-4 个，给灵感用）\"}]}。\n")
             append("若玩家表达了收尾意愿，请自然地给出结局感并让 choices 为空数组。\n")
         }
-        val user = contextTail(story, state, playerText) + stateSnapshot(state)
+        val user = contextTail(story, state, playerText) + stateSnapshot(state) + charStatesSnapshot(story, characters, state)
         val raw = client.streamText(profile, system, user, ChatOptions(story.ai.temperature, story.ai.maxTokens), onDelta)
         return parseScene(raw)
     }

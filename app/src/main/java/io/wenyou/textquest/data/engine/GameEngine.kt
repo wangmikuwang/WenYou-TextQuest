@@ -1,5 +1,7 @@
 package io.wenyou.textquest.data.engine
 
+import io.wenyou.textquest.data.model.CharacterMetrics
+import io.wenyou.textquest.data.model.CharacterState
 import io.wenyou.textquest.data.model.CompareOp
 import io.wenyou.textquest.data.model.Cond
 import io.wenyou.textquest.data.model.CondType
@@ -56,11 +58,16 @@ object GameEngine {
     fun evaluate(state: SessionState, conds: List<Cond>): Boolean {
         if (conds.isEmpty()) return true
         return conds.all { cond ->
+            val charId = cond.charId.trim()
+            val charState = if (charId.isNotEmpty()) state.characterStates[charId] else null
             when (cond.type) {
-                CondType.FLAG_TRUE -> cond.name in state.flags
-                CondType.FLAG_FALSE -> cond.name !in state.flags
+                CondType.FLAG_TRUE ->
+                    if (charState != null) cond.name in charState.flags else cond.name in state.flags
+                CondType.FLAG_FALSE ->
+                    if (charState != null) cond.name !in charState.flags else cond.name !in state.flags
                 CondType.VAR -> {
-                    val actual = state.variables[cond.name] ?: 0.0
+                    val actual = if (charState != null) charState.metrics[cond.name] ?: 0.0
+                    else state.variables[cond.name] ?: 0.0
                     val expect = cond.value
                     when (cond.op) {
                         CompareOp.EQ -> actual == expect
@@ -87,11 +94,15 @@ object GameEngine {
     fun applyEffects(state: SessionState, effects: List<Effect>): EffectsOutcome {
         var flags = state.flags
         var variables = state.variables
+        var charStates = state.characterStates
         val notes = mutableListOf<String>()
-        var diceTotal = 0.0
-        var diceName = ""
         for (effect in effects) {
             val name = effect.name.trim()
+            val charId = effect.charId.trim()
+            if (charId.isNotEmpty()) {
+                charStates = applyCharEffect(charStates, charId, effect, name, notes)
+                continue
+            }
             when (effect.type) {
                 EffectType.SET_FLAG -> if (name.isNotEmpty()) flags = flags + name
                 EffectType.CLEAR_FLAG -> if (name.isNotEmpty()) flags = flags - name
@@ -108,16 +119,49 @@ object GameEngine {
                     val faces = effect.to.toInt().coerceAtLeast(2)
                     val rolled = Random.nextInt(1, faces + 1)
                     variables = variables + (name to rolled.toDouble())
-                    diceTotal = rolled.toDouble()
-                    diceName = name
-                    notes += "🎲 掷 d$faces → $rolled（记录到「$name」）"
+                    notes += "🎲 掷 d$faces → $rolled" + if (name.isNotEmpty()) "（记录到「$name」）" else ""
                 }
             }
         }
-        // 骰子/随机可能产生小数，统一保留一位
         val normalized = variables.mapValues { (_, v) -> rollPrecision(v) }
-        return EffectsOutcome(state.copy(flags = flags, variables = normalized), notes)
+        return EffectsOutcome(state.copy(flags = flags, variables = normalized, characterStates = charStates), notes)
     }
+
+    /** 对单个角色状态施加效果（数值 0..100，标记按需增删）。 */
+    private fun applyCharEffect(
+        cs: Map<String, CharacterState>,
+        charId: String,
+        effect: Effect,
+        name: String,
+        notes: MutableList<String>
+    ): Map<String, CharacterState> {
+        if (name.isEmpty()) return cs
+        val cur = cs[charId] ?: CharacterState()
+        var metrics = cur.metrics
+        var flags = cur.flags
+        when (effect.type) {
+            EffectType.SET_FLAG -> flags = flags + name
+            EffectType.CLEAR_FLAG -> flags = flags - name
+            EffectType.SET_VAR -> metrics = setMetric(metrics, name, effect.value)
+            EffectType.ADD_VAR -> metrics = setMetric(metrics, name, (metrics[name] ?: 0.0) + effect.value)
+            EffectType.RANDOM_VAR -> {
+                val lo = minOf(effect.from, effect.to)
+                val hi = maxOf(effect.from, effect.to)
+                val rolled = if (hi > lo) Random.nextDouble(lo, hi) else lo
+                metrics = setMetric(metrics, name, rolled)
+            }
+            EffectType.ROLL -> {
+                val faces = effect.to.toInt().coerceAtLeast(2)
+                val rolled = Random.nextInt(1, faces + 1)
+                metrics = setMetric(metrics, name, rolled.toDouble())
+                notes += "🎲 掷 d$faces → $rolled（${CharacterMetrics.label(name)} 更新）"
+            }
+        }
+        return cs + (charId to cur.copy(metrics = metrics, flags = flags))
+    }
+
+    private fun setMetric(metrics: Map<String, Double>, key: String, value: Double): Map<String, Double> =
+        metrics + (key to CharacterMetrics.clamp(rollPrecision(value)))
 
     private fun rollPrecision(v: Double): Double = Math.round(v * 10.0) / 10.0
 

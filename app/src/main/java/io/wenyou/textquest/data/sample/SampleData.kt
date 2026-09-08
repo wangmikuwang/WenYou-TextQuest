@@ -49,7 +49,11 @@ object SampleData {
 
     // ---------------- 示例剧本：雨夜咖啡馆（分支 + AI 增强） ----------------
 
-    private val addIntimacy = listOf(Effect(EffectType.ADD_VAR, name = "intimacy", value = 1.0))
+    // 全局 intimacy 变量 + 角色「林晚秋」的好感度（角色状态，可在对局抽屉查看）
+    private val addIntimacy = listOf(
+        Effect(EffectType.ADD_VAR, name = "intimacy", value = 1.0),
+        Effect(EffectType.ADD_VAR, name = "affection", value = 1.0, charId = "char-lin")
+    )
 
     fun cafeStory(): Story {
         val nodes = linkedMapOf<String, StoryNode>()

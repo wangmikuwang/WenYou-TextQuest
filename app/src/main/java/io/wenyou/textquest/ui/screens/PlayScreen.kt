@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,12 +32,15 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -45,12 +49,14 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -62,10 +68,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import kotlinx.coroutines.launch
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.data.model.ApiProfile
 import io.wenyou.textquest.data.model.CharacterData
+import io.wenyou.textquest.data.model.CharacterMetrics
 import io.wenyou.textquest.data.model.EntryKind
+import io.wenyou.textquest.data.engine.GameEngine
 import io.wenyou.textquest.data.model.LogEntry
 import io.wenyou.textquest.data.model.NodeKind
 import io.wenyou.textquest.ui.theme.avatarColor
@@ -90,12 +99,15 @@ fun PlayScreen(container: WenYouApp.AppContainer, nav: NavHostController, storyI
     val history = ui.session?.history.orEmpty()
     val live = (ui.stage == PlayStage.AI_WORKING && ui.aiDelta.isNotBlank())
     var showProvider by remember { mutableStateOf(false) }
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
     LaunchedEffect(history.size, ui.aiDelta.length) {
         val last = history.size - 1 + if (live) 1 else 0
         if (last >= 0) listState.scrollToItem(last)
     }
 
-    Scaffold(
+    ModalNavigationDrawer(drawerState = drawerState, drawerContent = { CharacterStateDrawer(ui) }) {
+        Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = {
@@ -113,6 +125,7 @@ fun PlayScreen(container: WenYouApp.AppContainer, nav: NavHostController, storyI
                     }
                 },
                 actions = {
+                    TextButton(onClick = { scope.launch { drawerState.open() } }) { Text("状态") }
                     TextButton(onClick = { showProvider = true },
                         enabled = ui.providers.isNotEmpty()) {
                         Text("模型")
@@ -145,6 +158,7 @@ fun PlayScreen(container: WenYouApp.AppContainer, nav: NavHostController, storyI
             }
             ActionPanel(vm, ui, nav)
         }
+    }
     }
 
     if (showProvider) {
@@ -516,6 +530,67 @@ private fun StoppedPanel(ui: PlayUi, vm: PlayViewModel, nav: NavHostController) 
             Spacer(Modifier.height(4.dp))
             TextButton(onClick = { vm.saveNow() }, modifier = Modifier.align(Alignment.CenterHorizontally)) {
                 Text("保留这份存档")
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 角色状态抽屉
+// ---------------------------------------------------------------------------
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CharacterStateDrawer(ui: PlayUi) {
+    Surface(
+        modifier = Modifier.fillMaxHeight().width(300.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Column(
+            Modifier.padding(16.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text("角色状态", style = MaterialTheme.typography.titleLarge)
+            if (ui.session?.characterStates.isNullOrEmpty()) {
+                Text("还没有角色状态。剧情里为角色设置「好感度/身体状况/穿着」等效果后，这里会实时显示。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            ui.characters.forEach { c ->
+                val st = ui.session?.characterStates?.get(c.id)
+                if (st == null) return@forEach
+                Card(
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text("${c.emoji} ${c.name}", style = MaterialTheme.typography.titleSmall)
+                        Spacer(Modifier.height(6.dp))
+                        CharacterMetrics.defs.forEach { d ->
+                            val v = st.metrics[d.key] ?: return@forEach
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("${d.icon} ${d.label}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    modifier = Modifier.weight(1f))
+                                Text(GameEngine.formatNumber(CharacterMetrics.clamp(v)),
+                                    style = MaterialTheme.typography.bodySmall)
+                            }
+                            LinearProgressIndicator(
+                                progress = { (CharacterMetrics.clamp(v) / 100.0).toFloat() },
+                                modifier = Modifier.fillMaxWidth().height(6.dp).padding(top = 2.dp)
+                            )
+                            Spacer(Modifier.height(4.dp))
+                        }
+                        if (st.flags.isNotEmpty())
+                            Text("标记：${st.flags.joinToString("、")}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (st.description.isNotBlank())
+                            Text("穿着/外观：${st.description}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
             }
         }
     }

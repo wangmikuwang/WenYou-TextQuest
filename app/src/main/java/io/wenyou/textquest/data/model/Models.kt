@@ -109,23 +109,25 @@ enum class EffectType(val label: String) {
     @SerialName("roll") ROLL("掷骰：变量 = dN 结果")
 }
 
-/** 选项显示条件（全部满足才显示）。 */
+/** 选项显示条件（全部满足才显示）。charId 非空时作用于该角色，否则作用于全局。 */
 @Serializable
 data class Cond(
     val type: CondType = CondType.VAR,
     val name: String = "",
     val op: CompareOp = CompareOp.GTE,
-    val value: Double = 0.0
+    val value: Double = 0.0,
+    val charId: String = ""
 )
 
-/** 选择/进入节点时执行的效果（可多行，按顺序执行）。 */
+/** 选择/进入节点时执行的效果（可多行，按顺序执行）。charId 非空时作用于该角色状态。 */
 @Serializable
 data class Effect(
     val type: EffectType = EffectType.SET_FLAG,
     val name: String = "",
     val value: Double = 0.0,
     val from: Double = 0.0,
-    val to: Double = 100.0
+    val to: Double = 100.0,
+    val charId: String = ""
 )
 
 @Serializable
@@ -206,6 +208,16 @@ data class LogEntry(
     val ts: Long = 0L
 )
 
+/** 单个角色的当前状态（数值 0..100 + 标记 + 穿着/外观描述）。 */
+@Serializable
+data class CharacterState(
+    val metrics: Map<String, Double> = emptyMap(),
+    val flags: Set<String> = emptySet(),
+    val description: String = ""
+) {
+    fun metric(key: String, def: Double = 0.0): Double = metrics[key] ?: def
+}
+
 /** 一局游戏的完整状态（可序列化存档）。 */
 @Serializable
 data class SessionState(
@@ -215,7 +227,9 @@ data class SessionState(
     val variables: Map<String, Double> = emptyMap(),
     val history: List<LogEntry> = emptyList(),
     val aiEndless: Boolean = false,
-    val updatedAt: Long = 0L
+    val updatedAt: Long = 0L,
+    /** 角色状态（key = 角色 id）。 */
+    val characterStates: Map<String, CharacterState> = emptyMap()
 )
 
 @Serializable
