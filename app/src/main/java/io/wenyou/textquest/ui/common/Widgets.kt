@@ -115,14 +115,17 @@ fun AppField(
     visualTransformation: androidx.compose.ui.text.input.VisualTransformation = androidx.compose.ui.text.input.VisualTransformation.None,
     supporting: String = ""
 ) {
+    // 保证 minLines <= maxLines，避免 Compose 抛 IllegalArgumentException（minLines<=maxLines 校验）
+    val effMin = if (singleLine) 1 else minLines.coerceAtLeast(1)
+    val effMax = if (singleLine) 1 else maxLines.coerceAtLeast(effMin)
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
         label = { Text(label) },
         singleLine = singleLine,
-        minLines = minLines,
-        maxLines = if (singleLine) 1 else maxLines,
+        minLines = effMin,
+        maxLines = effMax,
         placeholder = if (placeholder.isNotBlank()) ({ Text(placeholder) }) else null,
         keyboardOptions = keyboardOptions,
         visualTransformation = visualTransformation,
