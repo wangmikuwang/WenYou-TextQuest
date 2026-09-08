@@ -5,8 +5,10 @@ import io.wenyou.textquest.data.model.AppJson
 import io.wenyou.textquest.data.model.ProviderKind
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
@@ -62,13 +64,14 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
         val full = StringBuilder()
         val call = buildCall(profile, system, user, options)
         try {
-            suspendCancellableCoroutine<String> { cont ->
-                cont.invokeOnCancellation { call.cancel() }
-                call.enqueue(object : Callback {
-                    override fun onFailure(call: Call, e: IOException) {
-                        if (cont.isCancelled) return
-                        cont.resumeWith(Result.failure(LlmException("网络错误：${e.message}", e)))
-                    }
+            withTimeout(90_000) {
+                suspendCancellableCoroutine<String> { cont ->
+                    cont.invokeOnCancellation { call.cancel() }
+                    call.enqueue(object : Callback {
+                        override fun onFailure(call: Call, e: IOException) {
+                            if (cont.isCancelled) return
+                            cont.resumeWith(Result.failure(LlmException("网络错误：${e.message}", e)))
+                        }
 
                     override fun onResponse(call: Call, response: Response) {
                         try {
@@ -112,6 +115,9 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
                     }
                 })
             }
+            }
+        } catch (e: TimeoutCancellationException) {
+            throw LlmException("AI 响应超时（90 秒未返回内容）。请检查模型配置、Key 与网络，或切换模型重试。")
         } finally {
             full.toString()
         }
