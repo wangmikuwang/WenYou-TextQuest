@@ -124,6 +124,11 @@ fun CharacterEditScreen(container: WenYouApp.AppContainer, nav: NavHostControlle
                     AppField(value = char.exampleDialogue, onValueChange = { vm.setExample(it) },
                         label = "台词示范", minLines = 2,
                         placeholder = "给 AI 一两句标志性台词，便于模仿语气。")
+                    Spacer(Modifier.padding(top = 8.dp))
+                    AppField(value = char.extraPrompt, onValueChange = { vm.setExtraPrompt(it) },
+                        label = "附加人设提示语（高优先级）", minLines = 5,
+                        placeholder = "写你的身份/世界观/规则/说话风格……会放到人设最前，权重最高，供 AI 优先遵循。",
+                        supporting = "用于强化人设与世界观；拼接系统提示时位于最高优先级。")
                 }
             }
             item { Spacer(Modifier.padding(top = 4.dp)) }

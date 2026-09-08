@@ -64,6 +64,7 @@ class CharacterEditorViewModel(
     fun setSpeech(v: String) = update { it.copy(speechStyle = v) }
     fun setBackground(v: String) = update { it.copy(background = v) }
     fun setExample(v: String) = update { it.copy(exampleDialogue = v) }
+    fun setExtraPrompt(v: String) = update { it.copy(extraPrompt = v) }
     fun setGreeting(v: String) = update { it.copy(greeting = v) }
 
     fun save() {

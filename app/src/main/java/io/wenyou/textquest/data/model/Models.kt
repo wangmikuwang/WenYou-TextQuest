@@ -58,7 +58,9 @@ data class CharacterData(
     val speechStyle: String = "",
     val background: String = "",
     val exampleDialogue: String = "",
-    val greeting: String = ""
+    val greeting: String = "",
+    /** 附加人设提示语（高优先级）：拼接系统提示时排在最前，用于强化身份/世界观/规则。 */
+    val extraPrompt: String = ""
 )
 
 // ---------------------------------------------------------------------------

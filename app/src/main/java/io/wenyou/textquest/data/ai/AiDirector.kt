@@ -41,6 +41,8 @@ class AiDirector(private val client: ChatClient) {
     // ---------------- 人设卡 ----------------
 
     fun personaCard(char: CharacterData): String = buildString {
+        // 高优先级人设提示语：放在最前，权重最高
+        if (char.extraPrompt.isNotBlank()) append(char.extraPrompt.trim()).append("\n")
         append("· 角色名：${char.name} ${char.emoji}\n")
         if (char.tagline.isNotBlank()) append("  一句话印象：${char.tagline}\n")
         if (char.personality.isNotBlank()) append("  性格：${char.personality}\n")
