@@ -38,17 +38,26 @@ class WenYouApp : Application() {
         installCrashLogger()
         appScope.launch {
             when {
-                // 完整版：内置示例 + LGBT/多题材预设
+                // 文游α：内置示例 + 非LGBT常备；LGBT 预设视「内容开关」而并入
                 BuildConfig.BUILTIN_CONTENT -> {
                     seedSamplesIfNeeded()
                     applyPresetAssets(listOf(
-                        "presets/romance-presets.json",
-                        "presets/wenyou-extended-presets.json"
-                    ))
+                        "presets/wenyou-bare-presets.json",
+                        "presets/wenyou-bare2-presets.json"
+                    ), markLgbt = false)
+                    if (container.settings.state.value.showLgbt) {
+                        applyPresetAssets(listOf(
+                            "presets/romance-presets.json",
+                            "presets/wenyou-extended-presets.json"
+                        ), markLgbt = true)
+                    }
                 }
-                // 纯净版：内置一套“非 LGBT”剧情与角色
+                // 文游β：仅内置“非 LGBT”剧情与角色
                 BuildConfig.BARE_CONTENT -> {
-                    applyPresetAssets(listOf("presets/wenyou-bare-presets.json"))
+                    applyPresetAssets(listOf(
+                        "presets/wenyou-bare-presets.json",
+                        "presets/wenyou-bare2-presets.json"
+                    ), markLgbt = false)
                 }
             }
         }
@@ -97,29 +106,35 @@ class WenYouApp : Application() {
      * 把 assets/presets/ 下的题材预设包（BL/伪百合/男娘/第四爱/娱乐圈ABO 等）
      * 自动并入资料库：按 id 去重、只补不覆盖。升级安装也能补到新版本新增的预设。
      */
-    /** 逐个资源去重合并（按 id 只补不覆盖）。 */
-    private suspend fun applyPresetAssets(presetFiles: List<String>) {
+    /** 逐个资源去重合并（按 id 只补不覆盖）。markLgbt=true 时给并入项打上 lgbt 标记。 */
+    private suspend fun applyPresetAssets(presetFiles: List<String>, markLgbt: Boolean) {
         for (name in presetFiles) {
             try {
-                applyPresetAsset(name)
+                applyPresetAsset(name, markLgbt)
             } catch (_: Throwable) {
                 // 单个资源失败不影响其它资源与主流程，下次启动重试
             }
         }
     }
 
-    private suspend fun applyPresetAsset(name: String) {
+    private suspend fun applyPresetAsset(name: String, markLgbt: Boolean) {
         val text = assets.open(name)
             .bufferedReader(Charsets.UTF_8)
             .use { it.readText() }
         val bundle = AppJson.decodeFromString(AppBundle.serializer(), text)
         val charIds = container.library.characters.value.mapTo(mutableSetOf()) { it.id }
         for (c in bundle.characters) {
-            if (charIds.add(c.id)) container.library.upsertCharacter(c)
+            if (charIds.add(c.id)) {
+                val cc = if (markLgbt && !c.lgbt) c.copy(lgbt = true) else c
+                container.library.upsertCharacter(cc)
+            }
         }
         val storyIds = container.library.stories.value.mapTo(mutableSetOf()) { it.id }
         for (s in bundle.stories) {
-            if (storyIds.add(s.id)) container.library.upsertStory(s)
+            if (storyIds.add(s.id)) {
+                val ss = if (markLgbt && !s.lgbt) s.copy(lgbt = true) else s
+                container.library.upsertStory(ss)
+            }
         }
     }
 }

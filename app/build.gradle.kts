@@ -35,20 +35,20 @@ android {
         }
     }
 
-    // 两个可独立安装的版本：full（含内置 LGBT/多题材预设）/ bare（内置一套“非 LGBT”剧情与角色）
+    // 两个可独立安装的版本：alpha（文游α，含 LGBT/多题材预设 + 内容开关）/ beta（文游β，非 LGBT 预设）
     flavorDimensions += "content"
     productFlavors {
-        create("bare") {
+        create("beta") {
             dimension = "content"
-            applicationIdSuffix = ".lite"
-            versionNameSuffix = "-bare"
+            applicationIdSuffix = ".beta"
+            versionNameSuffix = "-β"
             buildConfigField("boolean", "BUILTIN_CONTENT", "false")
             buildConfigField("boolean", "BARE_CONTENT", "true")
         }
-        create("full") {
+        create("alpha") {
             dimension = "content"
-            applicationIdSuffix = ".full"
-            versionNameSuffix = "-full"
+            applicationIdSuffix = ".alpha"
+            versionNameSuffix = "-α"
             buildConfigField("boolean", "BUILTIN_CONTENT", "true")
             buildConfigField("boolean", "BARE_CONTENT", "false")
         }

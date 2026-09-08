@@ -7,11 +7,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-/** 外观偏好（由根主题与设置页共享观察）。 */
+/** 外观/内容偏好（由根主题与设置页共享观察）。 */
 data class UiPrefs(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
-    val defaultProviderId: String? = null
+    val defaultProviderId: String? = null,
+    val showLgbt: Boolean = true
 )
 
 /** 轻量应用设置（SharedPreferences），变更同步发布到 [state] 供主题实时响应。 */
@@ -26,7 +27,8 @@ class SettingsStore(context: Context) {
     private fun load(): UiPrefs = UiPrefs(
         themeMode = ThemeMode.valueOf(prefs.getString(KEY_THEME, ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name),
         dynamicColor = prefs.getBoolean(KEY_DYNAMIC, true),
-        defaultProviderId = prefs.getString(KEY_PROVIDER, null)
+        defaultProviderId = prefs.getString(KEY_PROVIDER, null),
+        showLgbt = prefs.getBoolean(KEY_SHOW_LGBT, true)
     )
 
     fun setThemeMode(mode: ThemeMode) {
@@ -42,6 +44,11 @@ class SettingsStore(context: Context) {
     fun setDefaultProvider(id: String?) {
         prefs.edit().putString(KEY_PROVIDER, id).apply()
         _state.value = _state.value.copy(defaultProviderId = id)
+    }
+
+    fun setShowLgbt(on: Boolean) {
+        prefs.edit().putBoolean(KEY_SHOW_LGBT, on).apply()
+        _state.value = _state.value.copy(showLgbt = on)
     }
 
     // ---- 兼容旧读取点 ----
@@ -73,6 +80,7 @@ class SettingsStore(context: Context) {
         const val KEY_SEEDED = "seeded_v1"
         const val KEY_PRESETS = "presets_applied_v1"
         const val KEY_CRASH_DIR = "crash_dir_uri"
+        const val KEY_SHOW_LGBT = "show_lgbt"
         const val KEY_COMPACT = "compact_cards"
     }
 }

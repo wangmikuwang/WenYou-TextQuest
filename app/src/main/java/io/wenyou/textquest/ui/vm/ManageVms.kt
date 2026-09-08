@@ -249,6 +249,7 @@ data class SettingsUi(
     val mode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
     val defaultProviderId: String? = null,
+    val showLgbt: Boolean = true,
     val providers: List<ApiProfile> = emptyList(),
     val message: String = ""
 )
@@ -266,7 +267,7 @@ class SettingsViewModel(container: WenYouApp.AppContainer) : ViewModel() {
     ) { prefs: io.wenyou.textquest.data.repo.UiPrefs,
         providers: List<ApiProfile>,
         message: String ->
-        SettingsUi(prefs.themeMode, prefs.dynamicColor, prefs.defaultProviderId, providers, message)
+        SettingsUi(prefs.themeMode, prefs.dynamicColor, prefs.defaultProviderId, prefs.showLgbt, providers, message)
     }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, SettingsUi(providers = library.providers.value))
 
     init {
@@ -278,6 +279,7 @@ class SettingsViewModel(container: WenYouApp.AppContainer) : ViewModel() {
     fun setMode(mode: ThemeMode) = store.setThemeMode(mode)
     fun setDynamic(on: Boolean) = store.setDynamicColor(on)
     fun setDefaultProvider(id: String?) = store.setDefaultProvider(id)
+    fun setShowLgbt(on: Boolean) = store.setShowLgbt(on)
 
     /** 崩溃日志保存目录（SAF tree URI）。 */
     fun setCrashDir(uri: String?) { store.crashDirUri = uri }

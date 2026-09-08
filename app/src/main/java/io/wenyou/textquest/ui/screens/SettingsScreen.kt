@@ -188,6 +188,24 @@ fun SettingsScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
                 }
             }
 
+            // 只对话文游α（含预设）：LGBT/非LGBT 内容开关
+            if (BuildConfig.BUILTIN_CONTENT) {
+                item { SectionHeader("内容偏好") }
+                item {
+                    TonalCard {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("显示 LGBT（LGBTQ+）内容", style = MaterialTheme.typography.labelLarge)
+                                Text("关闭后，剧情库与角色将隐藏 LGBT 预设，仅显示非 LGBT 内容（校园/家庭/职场/悬疑/古风/科幻等）。",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Switch(checked = ui.showLgbt, onCheckedChange = { vm.setShowLgbt(it) })
+                        }
+                    }
+                }
+            }
+
             item { SectionHeader("数据备份") }
             item {
                 TonalCard {

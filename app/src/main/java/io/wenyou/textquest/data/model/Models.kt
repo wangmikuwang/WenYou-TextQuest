@@ -60,7 +60,9 @@ data class CharacterData(
     val exampleDialogue: String = "",
     val greeting: String = "",
     /** 附加人设提示语（高优先级）：拼接系统提示时排在最前，用于强化身份/世界观/规则。 */
-    val extraPrompt: String = ""
+    val extraPrompt: String = "",
+    /** 是否为 LGBT 向内容（供「内容开关」过滤显示）。 */
+    val lgbt: Boolean = false
 )
 
 // ---------------------------------------------------------------------------
@@ -176,7 +178,9 @@ data class Story(
     val nodes: Map<String, StoryNode> = emptyMap(),
     val initialVariables: Map<String, Double> = emptyMap(),
     val initialFlags: Set<String> = emptySet(),
-    val ai: AiStorySettings = AiStorySettings()
+    val ai: AiStorySettings = AiStorySettings(),
+    /** 是否为 LGBT 向内容（供「内容开关」过滤显示）。 */
+    val lgbt: Boolean = false
 )
 
 // ---------------------------------------------------------------------------
