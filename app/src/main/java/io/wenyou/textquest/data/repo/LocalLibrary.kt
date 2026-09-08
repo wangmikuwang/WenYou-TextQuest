@@ -130,8 +130,13 @@ class LocalLibrary(context: Context) {
     }
 
     private fun <T> persistList(file: File, list: List<T>, serializer: kotlinx.serialization.KSerializer<T>) {
-        val text = AppJson.encodeToString(ListSerializer(serializer), list)
-        file.writeText(text)
+        try {
+            val text = AppJson.encodeToString(ListSerializer(serializer), list)
+            file.writeText(text)
+        } catch (t: Throwable) {
+            // 写盘/序列化失败：记录到 crash.log，内存数据仍已更新，避免因此崩溃
+            try { File(file.parentFile, "crash.log").writeText("persistList(${file.name}) failed: $t\n") } catch (_: Throwable) {}
+        }
     }
 
     private fun <T> readList(file: File, serializer: kotlinx.serialization.KSerializer<T>): List<T> {

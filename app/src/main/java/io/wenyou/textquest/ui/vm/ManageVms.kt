@@ -74,8 +74,12 @@ class CharacterEditorViewModel(
             return
         }
         viewModelScope.launch {
-            library.upsertCharacter(c.copy(id = c.id.ifBlank { UUID.randomUUID().toString() }))
-            _ui.update { it.copy(message = "已保存「${c.name}」", isNew = false) }
+            try {
+                library.upsertCharacter(c.copy(id = c.id.ifBlank { UUID.randomUUID().toString() }))
+                _ui.update { it.copy(message = "已保存「${c.name}」", isNew = false) }
+            } catch (t: Throwable) {
+                _ui.update { it.copy(message = "保存失败：${t.message}") }
+            }
         }
     }
 }
