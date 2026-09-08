@@ -35,6 +35,23 @@ android {
         }
     }
 
+    // 两个可独立安装的版本：full（含内置预设剧情/角色）/ bare（纯净版，无任何内置内容）
+    flavorDimensions += "content"
+    productFlavors {
+        create("bare") {
+            dimension = "content"
+            applicationIdSuffix = ".lite"
+            versionNameSuffix = "-bare"
+            buildConfigField("boolean", "BUILTIN_CONTENT", "false")
+        }
+        create("full") {
+            dimension = "content"
+            applicationIdSuffix = ".full"
+            versionNameSuffix = "-full"
+            buildConfigField("boolean", "BUILTIN_CONTENT", "true")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false

@@ -36,9 +36,11 @@ class WenYouApp : Application() {
         super.onCreate()
         container = AppContainer(this)
         installCrashLogger()
-        appScope.launch {
-            seedSamplesIfNeeded()
-            applyPresetAssets()
+        if (BuildConfig.BUILTIN_CONTENT) {
+            appScope.launch {
+                seedSamplesIfNeeded()
+                applyPresetAssets()
+            }
         }
     }
 
