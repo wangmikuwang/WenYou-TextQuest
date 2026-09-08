@@ -84,23 +84,37 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
                                 )
                                 return
                             }
-                            val reader = response.body?.source() ?: run {
+                            val body = try { response.body?.string() } catch (t: Throwable) { null }
+                            if (body.isNullOrEmpty()) {
                                 cont.resumeWith(Result.failure(LlmException("空响应")))
                                 return
                             }
-                            while (true) {
-                                val line = reader.readUtf8Line() ?: break
-                                if (line.isBlank()) continue
-                                if (!line.startsWith("data:")) continue
-                                val payload = line.removePrefix("data:").trim()
-                                if (payload == "[DONE]") break
-                                if (payload.isEmpty()) continue
+                            if (body.contains("data:")) {
+                                // SSE 流式
+                                for (line in body.lineSequence()) {
+                                    if (line.isBlank()) continue
+                                    if (!line.startsWith("data:")) continue
+                                    val payload = line.removePrefix("data:").trim()
+                                    if (payload == "[DONE]") break
+                                    if (payload.isEmpty()) continue
+                                    val piece = try {
+                                        extractDelta(profile.kind, AppJson.parseToJsonElement(payload))
+                                    } catch (_: Throwable) {
+                                        null
+                                    }
+                                    // JsonNull 也是 JsonPrimitive，content 会返回 "null"：需过滤，避免无限 null 循环
+                                    if (piece != null && piece.isNotEmpty() && piece != "null") {
+                                        full.append(piece)
+                                        onDelta(piece)
+                                    }
+                                }
+                            } else {
+                                // 非流式：整体 JSON（某些网关忽略 stream 返回单次 JSON）
                                 val piece = try {
-                                    extractDelta(profile.kind, AppJson.parseToJsonElement(payload))
+                                    extractWhole(profile.kind, AppJson.parseToJsonElement(body))
                                 } catch (_: Throwable) {
                                     null
                                 }
-                                // JsonNull 也是 JsonPrimitive，content 会返回 "null"：需过滤，避免无限 null 循环
                                 if (piece != null && piece.isNotEmpty() && piece != "null") {
                                     full.append(piece)
                                     onDelta(piece)
@@ -285,8 +299,11 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
         return when (kind) {
             ProviderKind.OPENAI_COMPAT -> {
                 val choice = root["choices"]?.jsonArray?.firstOrNull()?.jsonObject ?: return null
+                // 优先 delta.content；其次 message.content（部分端点只在最后一帧带全文）；推理类考虑 reasoning_content
                 val delta = choice["delta"]?.jsonObject
                 val text = delta?.get("content")
+                    ?: choice["message"]?.jsonObject?.get("content")
+                    ?: delta?.get("reasoning_content")
                 when (text) {
                     is JsonNull -> null
                     is JsonPrimitive -> text.content.takeUnless { it == "null" }
@@ -304,6 +321,35 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
                 val candidates = root["candidates"]?.jsonArray ?: return null
                 if (candidates.isEmpty()) return null
                 val parts = candidates[0].jsonObject["content"]?.jsonObject?.get("parts")?.jsonArray ?: return null
+                val el = parts.firstOrNull()?.jsonObject?.get("text")
+                if (el == null || el is JsonNull) return null
+                (el as? JsonPrimitive)?.content?.takeUnless { it == "null" }
+            }
+        }
+    }
+
+    /** 非流式：从一次性 JSON 响应里提取完整文本。 */
+    private fun extractWhole(kind: ProviderKind, element: kotlinx.serialization.json.JsonElement): String? {
+        val root = element.jsonObject
+        return when (kind) {
+            ProviderKind.OPENAI_COMPAT -> {
+                val msg = root["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("message")?.jsonObject
+                val content = msg?.get("content")
+                when (content) {
+                    is JsonNull -> null
+                    is JsonPrimitive -> content.content.takeUnless { it == "null" }
+                    is JsonArray -> content.joinToString("") { (it as? JsonPrimitive)?.content.orEmpty() }
+                    else -> null
+                }
+            }
+            ProviderKind.ANTHROPIC -> {
+                val t = root["content"]?.jsonArray?.firstOrNull()?.jsonObject?.get("text")
+                if (t == null || t is JsonNull) return null
+                (t as? JsonPrimitive)?.content?.takeUnless { it == "null" }
+            }
+            ProviderKind.GEMINI -> {
+                val parts = root["candidates"]?.jsonArray?.firstOrNull()?.jsonObject
+                    ?.get("content")?.jsonObject?.get("parts")?.jsonArray ?: return null
                 val el = parts.firstOrNull()?.jsonObject?.get("text")
                 if (el == null || el is JsonNull) return null
                 (el as? JsonPrimitive)?.content?.takeUnless { it == "null" }
