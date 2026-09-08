@@ -84,16 +84,18 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
                                 )
                                 return
                             }
-                            val body = try { response.body?.string() } catch (t: Throwable) { null }
-                            if (body.isNullOrEmpty()) {
+                            val src = response.body?.source() ?: run {
                                 cont.resumeWith(Result.failure(LlmException("空响应")))
                                 return
                             }
-                            if (body.contains("data:")) {
-                                // SSE 流式
-                                for (line in body.lineSequence()) {
-                                    if (line.isBlank()) continue
-                                    if (!line.startsWith("data:")) continue
+                            var sawData = false
+                            val raw = StringBuilder()
+                            while (true) {
+                                val line = src.readUtf8Line() ?: break
+                                if (line.isBlank()) continue
+                                if (line.startsWith("data:")) {
+                                    // 流式：逐行增量处理（打字机效果）
+                                    sawData = true
                                     val payload = line.removePrefix("data:").trim()
                                     if (payload == "[DONE]") break
                                     if (payload.isEmpty()) continue
@@ -107,11 +109,15 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
                                         full.append(piece)
                                         onDelta(piece)
                                     }
+                                } else if (!sawData) {
+                                    // 尚未见到 data:，先缓存，用于非流式整体 JSON 兜底
+                                    raw.append(line).append('\n')
                                 }
-                            } else {
-                                // 非流式：整体 JSON（某些网关忽略 stream 返回单次 JSON）
+                            }
+                            if (!sawData && raw.isNotBlank()) {
+                                // 非流式：一次性 JSON
                                 val piece = try {
-                                    extractWhole(profile.kind, AppJson.parseToJsonElement(body))
+                                    extractWhole(profile.kind, AppJson.parseToJsonElement(raw.toString()))
                                 } catch (_: Throwable) {
                                     null
                                 }
