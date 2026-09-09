@@ -73,7 +73,7 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_SEEDED, false)
         set(value) = prefs.edit().putBoolean(KEY_SEEDED, value).apply()
 
-    /** 已成功合并过一次的预设资源文件名。用于避免每次启动重复全量导入（把用户删除的内容“复活”）。 */
+    /** 记录已成功合并过的预设资源文件名，避免每次启动重复全量导入，防止用户删除的内置内容被重新写回。 */
     fun appliedPresetFiles(): Set<String> =
         prefs.getStringSet(KEY_PRESET_FILES, emptySet())?.toSet() ?: emptySet()
 

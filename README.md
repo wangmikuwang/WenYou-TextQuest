@@ -1,61 +1,52 @@
-# 文游 TextQuest
+# 文游 TextQuest（WenYou TextQuest）
 
-自己编剧情、自己造角色、想接哪家 AI 就接哪家的 Android 文字游戏。
-Kotlin + Jetpack Compose 写的，纯分支剧本离线能玩，接上 AI 之后才有“AI 场景”和“AI 导演自由模式”。
+运行于 Android 的文字冒险游戏平台：支持完全离线的分支剧情，也支持接入第三方大模型 API 获得 AI 场景生成与 AI 导演自由模式。技术栈为 Kotlin、Jetpack Compose、Material 3；所有数据以 JSON 保存在应用私有目录。
 
-仓库在 `F:\OneDrive\Documents\harness\WenYouTextQuest`。
+## 版本（Product Flavors）
 
-## 两个版本
+工程定义两个可独立安装的 flavor：
 
-一个工程打两种可同装的包（flavor 见 `app/build.gradle.kts`）：
+- `alpha`（文游 α）：内置 LGBT 与成人向预设，设置页提供内容开关；
+- `beta`（文游 β）：仅内置非 LGBT 预设，不提供内容开关入口。
 
-- `alpha`（文游 α）：内置 LGBT 与成人向预设，设置里有内容开关
-- `beta`（文游 β）：只内置非 LGBT 预设，不带内容开关
+构建配置见 `app/build.gradle.kts`。内容开关只影响列表过滤，不删除本地数据；过滤逻辑位于 `ui/vm/LibraryViewModel.kt`。
 
-内容开关只是列表过滤，删不删数据是另一回事，过滤逻辑在 `ui/vm/LibraryViewModel.kt`。
+## 功能
 
-## 能玩什么
-
-- 节点式分支剧本：叙述 / AI 生成场景 / 结局三种节点。节点带进入效果，
-  选项带显示条件与效果，支持变量、标记、掷骰，正文里写 `${变量}` 做插值。
-- 角色卡：名字、Emoji、性格/说话方式/背景/台词示范，编辑后作为 AI 人设注入。
-  剧情里还可以给角色加 0..100 的状态值（好感、信任、精力这类），对局时从抽屉看。
-- 多品牌 AI：OpenAI 兼容协议一家覆盖 DeepSeek/Kimi/GLM/Qwen/豆包/OpenRouter/Ollama，
-  Claude 和 Gemini 走各自的原生协议。统一流式、打字机输出；页面里能测连接、拉模型列表。
-- 存档：随时可存，主页继续上次，整包 JSON 导出导入。
+- 节点式分支引擎：节点分为叙述（`NARRATION`）、AI 生成场景（`AI`）、结局（`ENDING`）三类。支持节点进入效果、选项显示条件与选择效果、数值变量、场景标记、掷骰，以及 `${变量}` 文本插值，实现在 `data/engine/GameEngine.kt`。
+- 角色卡：以名字、Emoji、性格、说话风格、背景、台词示范等字段构成角色人设，编辑后注入 AI 系统提示；对局中可维护角色的 0..100 状态值与标记，定义见 `data/model/CharacterMetrics.kt`。
+- 多品牌 AI 接入：OpenAI 兼容协议覆盖 DeepSeek、Kimi、GLM、Qwen、豆包、OpenRouter、硅基流动、小米 MiMo、Ollama 等服务；Anthropic 与 Gemini 分别走 Messages API 与 `streamGenerateContent` 原生协议。统一为 SSE 流式输出，提供连接测试与模型列表拉取，客户端实现见 `data/llm/ChatClient.kt`，品牌预设见 `data/llm/Catalog.kt`。
+- 对局存档：支持随时存档、主页续玩，以及整包 JSON 导出 / 导入。
 
 ## 构建
 
-用 Android Studio（Ladybug 或更新）打开本目录就能跑，仓库带 wrapper。
-要求 compileSdk 34、minSdk 26、JDK 17。
+编译环境要求：`compileSdk 34`、`minSdk 26`、JDK 17。仓库自带 Gradle wrapper（8.9），可直接用 Android Studio（Ladybug 或更新）打开运行。
 
-命令行打 debug 包：
+命令行构建示例：
 
 ```bash
-./gradlew :app:assembleAlphaDebug   # 或 assembleBetaDebug
+./gradlew :app:assembleAlphaDebug
+./gradlew :app:assembleBetaDebug
 ```
 
-版本号由 `./gradlew bumpVersion` 维护：patch +1 并同步 versionCode，
-脚本写在 `app/build.gradle.kts` 里。
+版本号维护在 `version.properties`；执行 `./gradlew bumpVersion` 会递增 `patch` 与 `versionCode`（任务定义于 `app/build.gradle.kts`）。正式打包前应先执行该任务。
 
-## 目录速览
+## 目录结构
 
 ```text
 app/src/main/java/io/wenyou/textquest/
-├── data/model/    序列化模型，JSON 手改友好
-├── data/engine/   分支引擎（条件/效果/掷骰/插值），纯逻辑
-├── data/ai/       AI 场景与导演的提示词组装、JSON 输出解析
-├── data/llm/      三家协议的流式客户端 + 品牌预设
-├── data/repo/     本地 JSON 库与设置
-├── data/sample/   首次启动植入的示例
-└── ui/            Compose 页面、VM、主题
+├── data/model/    持久化模型，JSON 序列化字段对手工编辑友好
+├── data/engine/   分支引擎：条件、效果、掷骰、模板插值，纯逻辑无 IO
+├── data/ai/       AI 场景与导演的提示词组装、模型 JSON 输出解析
+├── data/llm/      多协议流式客户端与品牌预设目录
+├── data/repo/     本地 JSON 资料库与 SharedPreferences 设置
+├── data/sample/   首次启动植入的示例角色与剧情
+└── ui/            Compose 页面、ViewModel、主题
 ```
 
-## 已知取舍
+## 设计决策与已知限制
 
-- 没上 Hilt/Room：注入手写，数据直接存 JSON 文件。少一层框架，
-  代价是写入要自己保证串行，备份就是拷文件。
-- AI 上下文取最近 `historyWindow` 条，长了自动截。
-- 流式生成途中不保存“半句”，整段结束才写日志，此时存档才一致。
-- 内置预设包按 id 合并一次、只补不覆盖。已经合并过的文件记录在
-  `SettingsStore`（`preset_files_applied_v2`），用户删掉的内置内容不会再被自动补回来。
+- 未引入 Hilt 与 Room：依赖注入在 `WenYouApp` 中手动完成，持久化直接读写 JSON 文件。该方案减少了框架与迁移成本，但所有写入需要由调用方保证串行；备份即复制文件。
+- AI 上下文取最近 `historyWindow` 条日志，超出部分自动截断，以避免提示词超长。
+- 流式生成结束前不写入对局日志，因此生成过程中无法保存“半句”内容；整段结束后存档即为一致状态。
+- 内置预设包按资源文件名记录合并状态（`SettingsStore` 的 `preset_files_applied_v2`），合并规则为按 id 只补不覆盖；用户已删除的内置内容不会在后续启动时被自动写回。

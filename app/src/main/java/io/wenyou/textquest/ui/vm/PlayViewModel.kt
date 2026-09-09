@@ -71,7 +71,7 @@ class PlayViewModel(
 
     private var session: SessionState? = null
 
-    /** 当前 AI 生成任务：新请求会先取消旧任务，避免重试/快速连点产生并发覆盖。 */
+    /** 当前 AI 生成任务。发起新请求前会取消旧任务，避免重试等场景产生并发覆盖。 */
     private var aiJob: Job? = null
 
     init {
@@ -85,7 +85,7 @@ class PlayViewModel(
                 return@launch
             }
             val chars = library.characters.value.filter { it.id in story.characterIds }
-            // “new” 是路由约定开新局的哨兵值，绝不能当成存档 id
+            // “new” 是路由中开新局的哨兵值，不作为存档 id 加载
             val loadId = saveId.takeIf { it.isNotBlank() && it != "new" }
             val loadedSlot = loadId?.let { library.saves.value.firstOrNull { x -> x.id == it } }
             val saveName = loadedSlot?.name ?: ""
@@ -273,7 +273,7 @@ class PlayViewModel(
             }
             return
         }
-        // 上一轮还在生成（快速连点/超时兜底）时不允许再起一个并发请求
+        // 已有生成任务在运行时，不再发起新的并发请求（覆盖快速连点等场景）
         if (aiJob?.isActive == true) return
         _ui.update { it.copy(stage = PlayStage.AI_WORKING, aiDelta = "", pendingAiChoices = emptyList(), providerMissing = false) }
         launchAiJob { job ->
@@ -403,7 +403,7 @@ class PlayViewModel(
 
     fun restart() {
         val story = _ui.value.story ?: return
-        // 若有生成任务未结束，先取消，避免旧结果写进新的一局
+        // 若仍有未结束的生成任务，先取消，避免旧结果写入新开局
         aiJob?.cancel()
         aiJob = null
         val fresh = GameEngine.newSession(story)

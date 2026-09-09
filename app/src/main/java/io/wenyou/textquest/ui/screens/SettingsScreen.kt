@@ -266,7 +266,7 @@ fun SettingsScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
                 TonalCard {
                     Text("版本", style = MaterialTheme.typography.labelLarge)
                     Spacer(Modifier.height(6.dp))
-                    Text("v${BuildConfig.VERSION_NAME}（build ${BuildConfig.VERSION_CODE}）\n本地优先：API Key 只存本机，不发任何远端。\n打包前记得跑 ./gradlew bumpVersion 升版。",
+                    Text("v${BuildConfig.VERSION_NAME}（build ${BuildConfig.VERSION_CODE}）\n本地优先：API Key 仅保存在本机，不上传任何远端。\n版本号由 ./gradlew bumpVersion 递增，打包前请先执行。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
