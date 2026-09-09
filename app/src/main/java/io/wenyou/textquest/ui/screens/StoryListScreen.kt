@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -41,6 +42,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -64,6 +66,7 @@ import io.wenyou.textquest.ui.vm.Vms
 fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
     val vm: LibraryViewModel = viewModel(factory = Vms.factory { LibraryViewModel(it) })
     val stories by vm.stories.collectAsState()
+    val totalStories by vm.totalStories.collectAsState()
     val filters by vm.filters.collectAsState()
     var pendingDelete by remember { mutableStateOf<Story?>(null) }
     var managesSaves by remember { mutableStateOf<Story?>(null) }
@@ -73,39 +76,39 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
         nav = nav
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
-            if (stories.isEmpty()) {
-                Column(
-                    Modifier.fillMaxSize().padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text("还没有任何剧情", style = MaterialTheme.typography.titleLarge)
-                    Text("点右下角「＋」开始编一个分支故事，或用内置示例练手。\n纯分支剧本离线可玩；想用 AI 场景/导演就去配一家 API。",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 10.dp))
+            LazyColumn(
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                item {
+                    FilterChipRow(
+                        options = StoryModeFilter.entries,
+                        selected = filters.modeFilter,
+                        label = { it.label },
+                        onSelect = { vm.setModeFilter(it) }
+                    )
                 }
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
+                item {
+                    FilterChipRow(
+                        options = StoryContentFilter.entries,
+                        selected = filters.contentFilter,
+                        label = { it.label },
+                        onSelect = { vm.setContentFilter(it) }
+                    )
+                }
+                if (stories.isEmpty()) {
                     item {
-                        FilterChipRow(
-                            options = StoryModeFilter.entries,
-                            selected = filters.modeFilter,
-                            label = { it.label },
-                            onSelect = { vm.setModeFilter(it) }
+                        FilterEmptyState(
+                            title = if (totalStories > 0) "该分类下暂无剧情" else "还没有任何剧情",
+                            body = if (totalStories > 0) "试试切换上方分类，或清除筛选查看全部。" else "点右下角「＋」编一个分支故事，或用内置示例练手。",
+                            showReset = totalStories > 0,
+                            onReset = {
+                                vm.setModeFilter(StoryModeFilter.ALL)
+                                vm.setContentFilter(StoryContentFilter.ALL)
+                            }
                         )
                     }
-                    item {
-                        FilterChipRow(
-                            options = StoryContentFilter.entries,
-                            selected = filters.contentFilter,
-                            label = { it.label },
-                            onSelect = { vm.setContentFilter(it) }
-                        )
-                    }
+                } else {
                     items(stories, key = { it.id }) { story ->
                         StoryCard(story,
                             onEdit = { nav.navigate(R.storyEdit(story.id)) },
@@ -170,6 +173,26 @@ private fun <T> FilterChipRow(
                 onClick = { onSelect(opt) },
                 label = { Text(label(opt)) }
             )
+        }
+    }
+}
+
+/** 全库为空 / 分类筛选后无内容 的占位与「清除筛选」入口。 */
+@Composable
+private fun FilterEmptyState(title: String, body: String, showReset: Boolean, onReset: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(title, style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(8.dp))
+        Text(body, style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center)
+        Spacer(Modifier.height(6.dp))
+        if (showReset) {
+            TextButton(onClick = onReset) { Text("清除筛选 / 查看全部") }
         }
     }
 }

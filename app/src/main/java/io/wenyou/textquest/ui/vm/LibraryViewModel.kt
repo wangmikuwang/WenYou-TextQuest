@@ -113,6 +113,12 @@ class LibraryViewModel(container: WenYouApp.AppContainer) : ViewModel() {
 
     val providers: StateFlow<List<io.wenyou.textquest.data.model.ApiProfile>> = _providers.asStateFlow()
 
+    /** 未过滤的原始总数（用于区分“库为空”与“该分类无内容”）。 */
+    val totalStories: StateFlow<Int> = _stories.map { it.size }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, _stories.value.size)
+    val totalCharacters: StateFlow<Int> = _characters.map { it.size }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, _characters.value.size)
+
     val homeCards: StateFlow<List<HomeCard>> = combine(_saves, _stories) {
             saves: List<SaveSlot>, stories: List<Story> ->
             saves.sortedByDescending { it.updatedAt }.map { slot ->

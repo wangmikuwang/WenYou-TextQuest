@@ -3,6 +3,7 @@ package io.wenyou.textquest.data.ai
 import io.wenyou.textquest.data.engine.GameEngine
 import io.wenyou.textquest.data.llm.ChatClient
 import io.wenyou.textquest.data.llm.ChatOptions
+import io.wenyou.textquest.data.llm.ChatResult
 import io.wenyou.textquest.data.llm.LlmException
 import io.wenyou.textquest.data.model.ApiProfile
 import io.wenyou.textquest.data.model.CharacterData
@@ -159,7 +160,7 @@ class AiDirector(private val client: ChatClient) {
         }
         val user = contextTail(story, state) + stateSnapshot(state) + charStatesSnapshot(story, characters, state) + scaleNote(adult)
         val result = client.streamText(profile, system, user, ChatOptions(story.ai.temperature, story.ai.maxTokens), onDelta, onReasoning)
-        return parseScene(result.content).copy(reasoning = result.reasoning)
+        return resolveScene(result)
     }
 
     // ---------------- AI 导演模式（自由对话） ----------------
@@ -191,7 +192,7 @@ class AiDirector(private val client: ChatClient) {
         }
         val user = contextTail(story, state, playerText) + stateSnapshot(state) + charStatesSnapshot(story, characters, state) + scaleNote(adult)
         val result = client.streamText(profile, system, user, ChatOptions(story.ai.temperature, story.ai.maxTokens), onDelta, onReasoning)
-        return parseScene(result.content).copy(reasoning = result.reasoning)
+        return resolveScene(result)
     }
 
     /** 测试一条服务是否可用。 */
@@ -205,6 +206,15 @@ class AiDirector(private val client: ChatClient) {
     }
 
     // ---------------- JSON 解析 ----------------
+
+    /** 优先解析正文；正文缺失时尝试思考内容。若答案实为从思考中解析而来，则不再把它当“思考过程”展示。 */
+    private fun resolveScene(result: ChatResult): AiScene {
+        val fromContent = parseScene(result.content)
+        if (fromContent.text.isNotBlank()) return fromContent.copy(reasoning = result.reasoning)
+        val fromReasoning = parseScene(result.reasoning)
+        if (fromReasoning.text.isNotBlank()) return fromReasoning.copy(reasoning = "")
+        return fromContent.copy(reasoning = result.reasoning)
+    }
 
     fun parseScene(raw: String): AiScene {
         val cleaned = raw.trim()
@@ -227,10 +237,55 @@ class AiDirector(private val client: ChatClient) {
                 }.take(6)
                 if (text.isNotEmpty()) return AiScene(text, choices)
             } catch (_: Throwable) {
-                // 落到下面按纯文本处理
+                // 容错：落到下方按字段抽取
             }
         }
-        return AiScene(text = cleaned.take(2000))
+        // 模型偶尔给出畸形 / 带代码围栏的 JSON：直接从文本里抠出 text 字段
+        val fallback = extractTextField(json ?: cleaned)
+        if (fallback.isNotBlank()) return AiScene(text = fallback)
+        // 纯文本（无 JSON 结构）：去掉围栏后作为正文；避免把 JSON 原文泄漏给玩家
+        val prose = stripJsonFence(cleaned)
+        if (!prose.contains('{')) return AiScene(text = prose.take(2000))
+        return AiScene()
+    }
+
+    /** 从任意文本（可能是漏解析的 JSON 原文）里抽取顶层 "text" 字段值并反转义。 */
+    private fun extractTextField(text: String): String {
+        val m = Regex("\"text\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"").find(text) ?: return ""
+        return unescapeJson(m.groupValues[1])
+    }
+
+    private fun unescapeJson(s: String): String = buildString {
+        var i = 0
+        while (i < s.length) {
+            val c = s[i]
+            if (c == '\\' && i + 1 < s.length) {
+                when (val n = s[i + 1]) {
+                    'n' -> { append('\n'); i += 2 }
+                    'r' -> { append('\r'); i += 2 }
+                    't' -> { append('\t'); i += 2 }
+                    '"' -> { append('"'); i += 2 }
+                    '\\' -> { append('\\'); i += 2 }
+                    'b' -> { append('\b'); i += 2 }
+                    'f' -> { append('\u000C'); i += 2 }
+                    'u' -> {
+                        if (i + 5 < s.length) {
+                            append(s.substring(i + 2, i + 6).toInt(16).toChar()); i += 6
+                        } else { append(c); i++ }
+                    }
+                    else -> { append(c); i++ }
+                }
+            } else {
+                append(c); i++
+            }
+        }
+    }
+
+    private fun stripJsonFence(text: String): String {
+        var t = text.trim()
+        t = t.removePrefix("```json").removePrefix("```").trim()
+        t = t.removeSuffix("```").trim()
+        return t
     }
 
     private fun extractJson(text: String): String? {

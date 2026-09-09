@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -40,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -60,6 +62,7 @@ import io.wenyou.textquest.ui.vm.Vms
 fun CharactersScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
     val vm: LibraryViewModel = viewModel(factory = Vms.factory { LibraryViewModel(it) })
     val characters by vm.characters.collectAsState()
+    val totalCharacters by vm.totalCharacters.collectAsState()
     val filters by vm.filters.collectAsState()
     var pendingDelete by remember { mutableStateOf<CharacterData?>(null) }
 
@@ -68,28 +71,26 @@ fun CharactersScreen(container: WenYouApp.AppContainer, nav: NavHostController) 
         nav = nav
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
-            if (characters.isEmpty()) {
-                Column(
-                    Modifier.fillMaxSize().padding(32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Text("还没有角色", style = MaterialTheme.typography.titleLarge)
-                    Text("性格、说话方式与背景会注入 AI；分支剧本也可直接引用角色来展示台词。",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+            LazyColumn(
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                item {
+                    OrientationFilterRow(
+                        selected = filters.orientationFilter,
+                        onSelect = { vm.setOrientationFilter(it) }
+                    )
                 }
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                if (characters.isEmpty()) {
                     item {
-                        OrientationFilterRow(
-                            selected = filters.orientationFilter,
-                            onSelect = { vm.setOrientationFilter(it) }
+                        CharacterEmptyState(
+                            title = if (totalCharacters > 0) "该分类下暂无角色" else "还没有角色",
+                            body = if (totalCharacters > 0) "试试切换上方性取向，或清除筛选查看全部。" else "性格、说话方式与背景会注入 AI；分支剧本也可直接引用角色来展示台词。",
+                            showReset = totalCharacters > 0,
+                            onReset = { vm.setOrientationFilter(null) }
                         )
                     }
+                } else {
                     items(characters, key = { it.id }) { c ->
                         CharacterCard(c, onEdit = { nav.navigate(R.charEdit(c.id)) },
                             onDelete = { pendingDelete = c })
@@ -140,6 +141,26 @@ private fun OrientationFilterRow(
                 onClick = { onSelect(opt) },
                 label = { Text(opt?.label ?: "全部") }
             )
+        }
+    }
+}
+
+/** 全库为空 / 性取向筛选后无内容 的占位与「清除筛选」入口。 */
+@Composable
+private fun CharacterEmptyState(title: String, body: String, showReset: Boolean, onReset: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(title, style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(8.dp))
+        Text(body, style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center)
+        Spacer(Modifier.height(6.dp))
+        if (showReset) {
+            TextButton(onClick = onReset) { Text("清除筛选 / 查看全部") }
         }
     }
 }
