@@ -13,7 +13,9 @@ data class UiPrefs(
     val dynamicColor: Boolean = true,
     val defaultProviderId: String? = null,
     val showLgbt: Boolean = true,
-    val adultContent: Boolean = true
+    val adultContent: Boolean = true,
+    /** 是否已通过「连点版本号 10 次」解锁内容开关（α 版此项默认隐藏）。 */
+    val contentUnlocked: Boolean = false
 )
 
 /** 轻量应用设置（SharedPreferences），变更同步发布到 [state] 供主题实时响应。 */
@@ -30,7 +32,8 @@ class SettingsStore(context: Context) {
         dynamicColor = prefs.getBoolean(KEY_DYNAMIC, true),
         defaultProviderId = prefs.getString(KEY_PROVIDER, null),
         showLgbt = prefs.getBoolean(KEY_SHOW_LGBT, true),
-        adultContent = prefs.getBoolean(KEY_ADULT, true)
+        adultContent = prefs.getBoolean(KEY_ADULT, true),
+        contentUnlocked = prefs.getBoolean(KEY_CONTENT_UNLOCKED, false)
     )
 
     /** 旧版本可能写入过未知枚举值（主题改名/清理残留），损坏时回退跟随系统。 */
@@ -63,6 +66,11 @@ class SettingsStore(context: Context) {
     fun setAdultContent(on: Boolean) {
         prefs.edit().putBoolean(KEY_ADULT, on).apply()
         _state.value = _state.value.copy(adultContent = on)
+    }
+
+    fun setContentUnlocked(on: Boolean) {
+        prefs.edit().putBoolean(KEY_CONTENT_UNLOCKED, on).apply()
+        _state.value = _state.value.copy(contentUnlocked = on)
     }
 
     // ---- 兼容旧读取点 ----
@@ -112,6 +120,7 @@ class SettingsStore(context: Context) {
         const val KEY_CRASH_DIR = "crash_dir_uri"
         const val KEY_SHOW_LGBT = "show_lgbt"
         const val KEY_ADULT = "adult_content"
+        const val KEY_CONTENT_UNLOCKED = "content_unlocked_v1"
         const val KEY_COMPACT = "compact_cards"
     }
 }

@@ -278,6 +278,7 @@ data class SettingsUi(
     val defaultProviderId: String? = null,
     val showLgbt: Boolean = true,
     val adultContent: Boolean = true,
+    val contentUnlocked: Boolean = false,
     val providers: List<ApiProfile> = emptyList(),
     val message: String = ""
 )
@@ -295,7 +296,7 @@ class SettingsViewModel(container: WenYouApp.AppContainer) : ViewModel() {
     ) { prefs: io.wenyou.textquest.data.repo.UiPrefs,
         providers: List<ApiProfile>,
         message: String ->
-        SettingsUi(prefs.themeMode, prefs.dynamicColor, prefs.defaultProviderId, prefs.showLgbt, prefs.adultContent, providers, message)
+        SettingsUi(prefs.themeMode, prefs.dynamicColor, prefs.defaultProviderId, prefs.showLgbt, prefs.adultContent, prefs.contentUnlocked, providers, message)
     }.stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.Eagerly, SettingsUi(providers = library.providers.value))
 
     init {
@@ -309,6 +310,9 @@ class SettingsViewModel(container: WenYouApp.AppContainer) : ViewModel() {
     fun setDefaultProvider(id: String?) = store.setDefaultProvider(id)
     fun setShowLgbt(on: Boolean) = store.setShowLgbt(on)
     fun setAdultContent(on: Boolean) = store.setAdultContent(on)
+
+    /** 是否已解锁内容开关（α 版默认隐藏，连点版本号 10 次解锁）。 */
+    fun unlockContentPrefs() = store.setContentUnlocked(true)
 
     /** 崩溃日志保存目录（SAF tree URI）。 */
     fun setCrashDir(uri: String?) { store.crashDirUri = uri }
