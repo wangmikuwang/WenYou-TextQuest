@@ -86,47 +86,27 @@ object GifEncoder {
         return out.toByteArray()
     }
 
-    /** 规范 GIF LZW：字典编码 + 数据子块分帧（≤255 字节一块，末尾 0x00）。 */
+    /** GIF LZW：采用“无压缩字面量 + 周期 clear”写法，保证任何解码器都能正确解析（不触发码长增长）。 */
     private fun writeLzw(out: ByteArrayOutputStream, indices: ByteArray, minCodeSize: Int) {
         if (indices.isEmpty()) return
         out.write(minCodeSize)
-        val payload = ByteArrayOutputStream()
-        val bw = BitWriter(payload)
         val clear = 1 shl minCodeSize
         val eoi = clear + 1
-        var codeSize = minCodeSize + 1
-        var maxCode = 1 shl codeSize
-        var avail = eoi + 1
-        val table = HashMap<Long, Int>()
-
-        bw.write(clear, codeSize)
-        var prefix = indices[0].toInt()
-        for (i in 1 until indices.size) {
-            val k = indices[i].toInt()
-            val key = (prefix.toLong() shl 8) or k.toLong()
-            val hit = table[key]
-            if (hit != null) {
-                prefix = hit
-            } else {
-                table[key] = avail
-                bw.write(prefix, codeSize)
-                avail++
-                if (avail == maxCode) {
-                    if (codeSize < 12) {
-                        codeSize++
-                        maxCode = 1 shl codeSize
-                    } else {
-                        bw.write(clear, codeSize)
-                        table.clear()
-                        avail = eoi + 1
-                        codeSize = minCodeSize + 1
-                        maxCode = 1 shl codeSize
-                    }
-                }
-                prefix = k
+        val codeSize = minCodeSize + 1
+        // 每批最多 4 个字面码：确保解码器 available 不达 1<<codeSize，码长恒定
+        val batch = 4
+        val payload = ByteArrayOutputStream()
+        val bw = BitWriter(payload)
+        var i = 0
+        while (i < indices.size) {
+            bw.write(clear, codeSize)
+            var n = 0
+            while (i < indices.size && n < batch) {
+                bw.write(indices[i].toInt(), codeSize)
+                i++
+                n++
             }
         }
-        bw.write(prefix, codeSize)
         bw.write(eoi, codeSize)
         bw.close()
 
