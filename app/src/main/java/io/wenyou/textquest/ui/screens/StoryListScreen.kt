@@ -224,6 +224,7 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
         ShareQrDialog(
             story = story,
             code = vm.shareCodeFor(story.id),
+            onSwitchText = { shareCodeStory = story; shareQrStory = null },
             onDismiss = { shareQrStory = null }
         )
     }
@@ -322,9 +323,9 @@ private fun ShareTextDialog(story: Story, code: String, onDismiss: () -> Unit) {
     )
 }
 
-/** 二维码弹窗：仅展示可扫二维码，附带复制文本兜底。 */
+/** 二维码弹窗：仅展示可扫二维码，附带复制文本兜底；放不下时提示改用分享码。 */
 @Composable
-private fun ShareQrDialog(story: Story, code: String, onDismiss: () -> Unit) {
+private fun ShareQrDialog(story: Story, code: String, onSwitchText: () -> Unit, onDismiss: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
     val qr = remember(code) { QrCode.encode(code, 640) }
@@ -333,25 +334,31 @@ private fun ShareQrDialog(story: Story, code: String, onDismiss: () -> Unit) {
         title = { Text("二维码 · ${story.title}") },
         text = {
             Column {
-                Text(
-                    "让对方用手机相机「扫码」识别，或回到剧情库「导入码 → 扫码识别」。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(8.dp))
                 if (qr != null) {
+                    Text(
+                        "让对方用手机相机「扫码」识别，或回到剧情库「导入码 → 扫码识别」。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(8.dp))
                     Image(
                         bitmap = qr.asImageBitmap(),
                         contentDescription = "分享二维码",
                         modifier = Modifier.align(Alignment.CenterHorizontally).size(240.dp)
                     )
                     Spacer(Modifier.height(6.dp))
+                    Text(
+                        if (copied) "已复制分享码文本" else "扫码失败时可点「复制文本」手动粘贴。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                } else {
+                    Text(
+                        "该剧情较大，一个二维码放不下。可点下方「改用分享码」用文本分享，或「复制文本」手动粘贴。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                Text(
-                    if (copied) "已复制分享码文本" else "扫码失败时可点「复制文本」手动粘贴。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
             }
         },
         confirmButton = {
@@ -360,6 +367,9 @@ private fun ShareQrDialog(story: Story, code: String, onDismiss: () -> Unit) {
                     clipboard.setText(AnnotatedString(code))
                     copied = true
                 }) { Text("复制文本") }
+                if (qr == null) {
+                    TextButton(onClick = onSwitchText) { Text("改用分享码") }
+                }
                 TextButton(onClick = onDismiss) { Text("关闭") }
             }
         }
