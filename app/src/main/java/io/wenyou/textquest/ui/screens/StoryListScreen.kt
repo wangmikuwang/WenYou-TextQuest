@@ -1,5 +1,6 @@
 package io.wenyou.textquest.ui.screens
 
+import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -22,6 +23,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -32,6 +34,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -42,6 +45,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -72,9 +78,18 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
     val filters by vm.filters.collectAsState()
     var pendingDelete by remember { mutableStateOf<Story?>(null) }
     var managesSaves by remember { mutableStateOf<Story?>(null) }
+    var sharingStory by remember { mutableStateOf<Story?>(null) }
+    var importDialog by remember { mutableStateOf(false) }
 
     HubScaffold(
-        topBar = { CenterAlignedTopAppBar(title = { Text("剧情库") }) },
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("剧情库") },
+                actions = {
+                    TextButton(onClick = { importDialog = true }) { Text("导入码") }
+                }
+            )
+        },
         nav = nav
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
@@ -118,6 +133,7 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
                             onEdit = { nav.navigate(R.storyEdit(story.id)) },
                             onPlay = { nav.navigate(R.play(story.id)) },
                             onSaves = { managesSaves = story },
+                            onShare = { sharingStory = story },
                             onDelete = { pendingDelete = story })
                     }
                 }
@@ -157,6 +173,114 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
             onDismiss = { managesSaves = null }
         )
     }
+
+    sharingStory?.let { story ->
+        ShareCodeDialog(
+            story = story,
+            code = vm.shareCodeFor(story.id),
+            onDismiss = { sharingStory = null }
+        )
+    }
+
+    if (importDialog) {
+        ImportCodeDialog(
+            onDismiss = { importDialog = false },
+            onImport = { code, cb -> vm.importShareCode(code, cb) }
+        )
+    }
+}
+
+/** 生成/复制/分享一段剧情的分享码。 */
+@Composable
+private fun ShareCodeDialog(story: Story, code: String, onDismiss: () -> Unit) {
+    val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
+    var copied by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("分享码 · ${story.title}") },
+        text = {
+            Column {
+                Text(
+                    "把这段分享码发给朋友，对方在剧情库点右上角「导入码」即可获得本剧情及其角色。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = {},
+                    readOnly = true,
+                    minLines = 3,
+                    maxLines = 7,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (copied) "已复制到剪贴板" else "分享码通常较长，复制或系统分享均可。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        },
+        confirmButton = {
+            Row {
+                TextButton(onClick = {
+                    clipboard.setText(AnnotatedString(code))
+                    copied = true
+                }) { Text("复制") }
+                TextButton(onClick = {
+                    val send = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(Intent.EXTRA_TEXT, code)
+                    }
+                    context.startActivity(Intent.createChooser(send, "分享剧情"))
+                }) { Text("分享") }
+                TextButton(onClick = onDismiss) { Text("关闭") }
+            }
+        }
+    )
+}
+
+/** 粘贴分享码并导入（只补不覆盖）。 */
+@Composable
+private fun ImportCodeDialog(onDismiss: () -> Unit, onImport: (String, (String) -> Unit) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    var result by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("导入分享码") },
+        text = {
+            Column {
+                Text(
+                    "粘贴对方发来的分享码（以 WY1: 开头）。剧情节与角色会按 id 补入，不覆盖你已有的内容。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text("分享码") },
+                    minLines = 3,
+                    maxLines = 6,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (result.isNotBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(result, style = MaterialTheme.typography.bodySmall,
+                        color = if (result.startsWith("导入成功")) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                if (text.isNotBlank()) onImport(text) { result = it }
+            }) { Text("导入") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
+    )
 }
 
 /** 横向滚动的过滤 Chip 行（全部 + 各分类）。 */
@@ -242,7 +366,7 @@ private fun SavesDialog(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun StoryCard(story: Story, onEdit: () -> Unit, onPlay: () -> Unit, onSaves: () -> Unit, onDelete: () -> Unit) {
+private fun StoryCard(story: Story, onEdit: () -> Unit, onPlay: () -> Unit, onSaves: () -> Unit, onShare: () -> Unit, onDelete: () -> Unit) {
     val color = avatarColor(story.colorIndex)
     val aiNodes = story.nodes.values.count { it.kind == NodeKind.AI }
     Card(
@@ -278,6 +402,9 @@ private fun StoryCard(story: Story, onEdit: () -> Unit, onPlay: () -> Unit, onSa
             }
             IconButton(onClick = onSaves) {
                 Icon(Icons.Filled.Check, "读取存档", tint = MaterialTheme.colorScheme.primary)
+            }
+            IconButton(onClick = onShare) {
+                Icon(Icons.Filled.Share, "生成分享码", tint = MaterialTheme.colorScheme.primary)
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Filled.Delete, "删除", tint = MaterialTheme.colorScheme.outline)

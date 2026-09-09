@@ -112,6 +112,23 @@ class LocalLibrary(context: Context) {
         bundle.providers.size + bundle.characters.size + bundle.stories.size + bundle.saves.size
     }
 
+    /** 分享码导入：仅按 id 补入缺失的剧情与角色，不覆盖同名、不触碰用户已有数据。 */
+    suspend fun importShared(bundle: AppBundle): Int = withContext(Dispatchers.IO) {
+        val charIds = _characters.value.mapTo(mutableSetOf()) { it.id }
+        val newChars = bundle.characters.filter { charIds.add(it.id) }
+        val storyIds = _stories.value.mapTo(mutableSetOf()) { it.id }
+        val newStories = bundle.stories.filter { storyIds.add(it.id) }
+        if (newChars.isNotEmpty() || newStories.isNotEmpty()) {
+            val chars = _characters.value + newChars
+            val stories = _stories.value + newStories
+            _characters.value = chars
+            _stories.value = stories
+            persistList(charactersFile, chars, CharacterData.serializer())
+            persistList(storiesFile, stories, Story.serializer())
+        }
+        newChars.size + newStories.size
+    }
+
     // ---------------- 内部工具 ----------------
 
     private fun <T> replaceById(list: List<T>, id: String, item: T): List<T> {

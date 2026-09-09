@@ -3,6 +3,7 @@ package io.wenyou.textquest.ui.vm
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.wenyou.textquest.WenYouApp
+import io.wenyou.textquest.data.model.AppBundle
 import io.wenyou.textquest.data.model.SaveSlot
 import io.wenyou.textquest.data.model.SexualOrientation
 import io.wenyou.textquest.data.model.Story
@@ -10,6 +11,7 @@ import io.wenyou.textquest.data.model.StoryMode
 import io.wenyou.textquest.data.model.storyContentClass
 import io.wenyou.textquest.data.repo.LocalLibrary
 import io.wenyou.textquest.data.repo.SettingsStore
+import io.wenyou.textquest.data.repo.ShareCode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -143,6 +145,35 @@ class LibraryViewModel(container: WenYouApp.AppContainer) : ViewModel() {
     fun deleteStory(id: String) = viewModelScope.launch { library.deleteStory(id) }
     fun deleteCharacter(id: String) = viewModelScope.launch { library.deleteCharacter(id) }
     fun deleteProvider(id: String) = viewModelScope.launch { library.deleteProvider(id) }
+
+    /** 生成一部剧情的分享码（含其引用的角色；剧情不存在返回空串）。 */
+    fun shareCodeFor(storyId: String): String {
+        val story = _stories.value.firstOrNull { it.id == storyId } ?: return ""
+        val chars = _characters.value.filter { it.id in story.characterIds }
+        return ShareCode.encode(AppBundle(characters = chars, stories = listOf(story)))
+    }
+
+    /** 从分享码导入：只补不覆盖，结果通过 onResult 回调（主线程执行）。 */
+    fun importShareCode(code: String, onResult: (String) -> Unit) {
+        val bundle = ShareCode.decode(code)
+        if (bundle == null) {
+            onResult("分享码无效，请检查是否完整")
+            return
+        }
+        if (bundle.stories.isEmpty() && bundle.characters.isEmpty()) {
+            onResult("分享码中没有可导入的内容")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val n = library.importShared(bundle)
+                onResult("导入成功：新增 $n 条内容")
+            } catch (t: Throwable) {
+                onResult("导入失败：${t.message}")
+            }
+        }
+    }
+
     fun setShowLgbt(on: Boolean) = settings.setShowLgbt(on)
     fun showLgbt(): Boolean = settings.state.value.showLgbt
 
