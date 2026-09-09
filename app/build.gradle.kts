@@ -79,6 +79,16 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    // APK 产物去掉 debug 字样，直接可用于分发：WenYou-<flavor>-v<版本>.apk
+    applicationVariants.all {
+        val flavor = name.removeSuffix("Debug").removeSuffix("Release")
+        val baseName = "WenYou-$flavor-v$appVersionName"
+        outputs.all {
+            (this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl)
+                ?.outputFileName = "$baseName.apk"
+        }
+    }
 }
 
 // 每次对软件做修改，视为一次升级：运行 `gradlew bumpVersion`（+patch / +versionCode），再 assemble。

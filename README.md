@@ -169,6 +169,11 @@ app/src/main/java/io/wenyou/textquest/
 └── ui/            Compose 页面、ViewModel、主题
 ```
 
+## 贡献者
+
+- [wangmikuwang](https://github.com/wangmikuwang)：项目发起、整体架构与产品设计。
+- Little Code Sauce（AI 编程搭档）：功能实现、代码审核与优化、构建与发布流程。
+
 ## 设计决策与已知限制
 
 - 未引入 Hilt 与 Room：依赖注入在 `WenYouApp` 中手动完成，持久化直接读写 JSON 文件。该方案减少了框架与迁移成本，但所有写入需要由调用方保证串行；备份即复制文件。
