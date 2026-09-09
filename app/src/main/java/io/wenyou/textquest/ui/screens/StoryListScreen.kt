@@ -11,6 +11,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -38,6 +39,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
@@ -59,6 +62,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,6 +81,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import kotlinx.coroutines.delay
 import io.wenyou.textquest.BuildConfig
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.data.model.ContentClass
@@ -353,12 +358,12 @@ private fun QrCard(bitmap: android.graphics.Bitmap, dp: Int, modifier: Modifier 
         shape = RoundedCornerShape(18.dp),
         color = Color.White,
         shadowElevation = 3.dp,
-        modifier = modifier
+        modifier = modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(18.dp))
     ) {
         Image(
             bitmap = bitmap.asImageBitmap(),
             contentDescription = "二维码",
-            modifier = Modifier.padding(10.dp).size(dp.dp)
+            modifier = Modifier.padding(12.dp).size(dp.dp)
         )
     }
 }
@@ -407,21 +412,33 @@ fun ShareQrDialog(title: String, code: String, onDismiss: () -> Unit) {
                     )
                 } else if (isMulti) {
                     Text(
-                        "内容较大放不进一张，已拆成 ${chunks.size} 张低密度二维码（更易扫）。让朋友按顺序依次扫描，导入端会自动拼接。",
+                        "内容较大，已拆成 ${chunks.size} 张。屏幕会自动轮播，让对方相机持续对着即可自动拼接。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(8.dp))
-                    Column(Modifier.heightIn(max = 340.dp).verticalScroll(rememberScrollState())) {
-                        chunks.forEachIndexed { idx, ch ->
-                            val qr = remember(ch) { QrCode.encode(ch, 560) }
+                    var idx by remember(chunks) { mutableStateOf(0) }
+                    LaunchedEffect(chunks.size) {
+                        while (true) {
+                            delay(1600)
+                            idx = (idx + 1) % chunks.size
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        IconButton(onClick = { idx = (idx - 1 + chunks.size) % chunks.size }) {
+                            Icon(Icons.Filled.KeyboardArrowLeft, "上一张", tint = MaterialTheme.colorScheme.primary)
+                        }
+                        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                            val qr = remember(chunks[idx]) { QrCode.encode(chunks[idx], 620) }
                             Text(
                                 "第 ${idx + 1}/${chunks.size} 张",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            if (qr != null) QrCard(qr, 220, Modifier.align(Alignment.CenterHorizontally))
+                            if (qr != null) QrCard(qr, 260, Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp))
+                        }
+                        IconButton(onClick = { idx = (idx + 1) % chunks.size }) {
+                            Icon(Icons.Filled.KeyboardArrowRight, "下一张", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                 } else {
