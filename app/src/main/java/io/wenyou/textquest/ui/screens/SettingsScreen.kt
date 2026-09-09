@@ -264,15 +264,11 @@ fun SettingsScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
 
             item {
                 TonalCard {
-                    Text("设计遵循", style = MaterialTheme.typography.labelLarge)
+                    Text("版本", style = MaterialTheme.typography.labelLarge)
                     Spacer(Modifier.height(6.dp))
-                    Text("界面遵循 Android Material You 设计规范：动态色调角色与容器色、圆角形态、动效与自适应排版。",
+                    Text("v${BuildConfig.VERSION_NAME}（build ${BuildConfig.VERSION_CODE}）\n本地优先：API Key 只存本机，不发任何远端。\n打包前记得跑 ./gradlew bumpVersion 升版。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(8.dp))
-                    Text("v${BuildConfig.VERSION_NAME}（build ${BuildConfig.VERSION_CODE}）· 本地优先：API Key 不离开本机\n每次改动请运行 gradlew bumpVersion 升版后再打包。",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.outline)
                 }
             }
             item { Spacer(Modifier.height(80.dp)) }

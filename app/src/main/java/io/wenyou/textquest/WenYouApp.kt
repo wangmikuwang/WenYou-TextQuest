@@ -47,7 +47,7 @@ class WenYouApp : Application() {
                     ), markLgbt = false)
                     if (container.settings.state.value.showLgbt) {
                         applyPresetAssets(listOf(
-                            "presets/romance-presets.json",
+                            "presets/wenyou-romance-presets.json",
                             "presets/wenyou-extended-presets.json"
                         ), markLgbt = true)
                     }
@@ -109,9 +109,14 @@ class WenYouApp : Application() {
      */
     /** 逐个资源去重合并（按 id 只补不覆盖）。markLgbt/markAdult 用于打标签。 */
     private suspend fun applyPresetAssets(presetFiles: List<String>, markLgbt: Boolean = false, markAdult: Boolean = false) {
+        // 每个文件只成功合并一次并记录；否则每次启动全量重扫会把
+        // 用户主动删除的内置内容“复活”，也浪费启动时间
+        val already = container.settings.appliedPresetFiles()
         for (name in presetFiles) {
+            if (name in already) continue
             try {
                 applyPresetAsset(name, markLgbt, markAdult)
+                container.settings.markPresetFileApplied(name)
             } catch (_: Throwable) {
                 // 单个资源失败不影响其它资源与主流程，下次启动重试
             }

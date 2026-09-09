@@ -11,7 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
-/** 外观模式：跟随系统 / 浅色 / 深色。 */
+/** 外观三态：跟随系统 / 浅色 / 深色。 */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 private val LightColors = lightColorScheme(
@@ -46,11 +46,8 @@ private val DarkColors = darkColorScheme(
 )
 
 /**
- * 应用主题 —— 遵循 Material You：
- * - Android 12+ 且开启「动态配色」时使用 [dynamicLightColorScheme] / [dynamicDarkColorScheme]
- *   （壁纸取色，色调角色 primary/secondary/tertiary 与容器色全部由系统生成）；
- * - 否则回退到品牌配色；
- * - 圆角形态与排版通过 MaterialTheme.shapes / typography 继承 M3 基线。
+ * 主题入口。Android 12+ 且开了动态取色就用系统壁纸色板，
+ * 否则回退品牌配色；形态与字阶由 MaterialTheme 继承 M3 基线。
  */
 @Composable
 fun WenYouTheme(

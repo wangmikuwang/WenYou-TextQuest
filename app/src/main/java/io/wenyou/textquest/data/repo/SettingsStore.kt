@@ -26,12 +26,19 @@ class SettingsStore(context: Context) {
     val state: StateFlow<UiPrefs> = _state.asStateFlow()
 
     private fun load(): UiPrefs = UiPrefs(
-        themeMode = ThemeMode.valueOf(prefs.getString(KEY_THEME, ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name),
+        themeMode = themeOf(prefs.getString(KEY_THEME, ThemeMode.SYSTEM.name)),
         dynamicColor = prefs.getBoolean(KEY_DYNAMIC, true),
         defaultProviderId = prefs.getString(KEY_PROVIDER, null),
         showLgbt = prefs.getBoolean(KEY_SHOW_LGBT, true),
         adultContent = prefs.getBoolean(KEY_ADULT, true)
     )
+
+    /** 旧版本可能写入过未知枚举值（主题改名/清理残留），损坏时回退跟随系统。 */
+    private fun themeOf(raw: String?): ThemeMode = try {
+        ThemeMode.valueOf(raw ?: "")
+    } catch (_: Throwable) {
+        ThemeMode.SYSTEM
+    }
 
     fun setThemeMode(mode: ThemeMode) {
         prefs.edit().putString(KEY_THEME, mode.name).apply()
@@ -66,10 +73,14 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_SEEDED, false)
         set(value) = prefs.edit().putBoolean(KEY_SEEDED, value).apply()
 
-    /** 内置「题材预设包」是否已合并进资料库。 */
-    var presetsApplied: Boolean
-        get() = prefs.getBoolean(KEY_PRESETS, false)
-        set(value) = prefs.edit().putBoolean(KEY_PRESETS, value).apply()
+    /** 已成功合并过一次的预设资源文件名。用于避免每次启动重复全量导入（把用户删除的内容“复活”）。 */
+    fun appliedPresetFiles(): Set<String> =
+        prefs.getStringSet(KEY_PRESET_FILES, emptySet())?.toSet() ?: emptySet()
+
+    fun markPresetFileApplied(name: String) {
+        val next = appliedPresetFiles() + name
+        prefs.edit().putStringSet(KEY_PRESET_FILES, next).apply()
+    }
 
     /** 崩溃日志保存目录（SAF 授权的 Documents tree URI；空 = 未选择）。 */
     var crashDirUri: String?
@@ -85,7 +96,7 @@ class SettingsStore(context: Context) {
         const val KEY_DYNAMIC = "dynamic_color"
         const val KEY_PROVIDER = "default_provider"
         const val KEY_SEEDED = "seeded_v1"
-        const val KEY_PRESETS = "presets_applied_v1"
+        const val KEY_PRESET_FILES = "preset_files_applied_v2"
         const val KEY_CRASH_DIR = "crash_dir_uri"
         const val KEY_SHOW_LGBT = "show_lgbt"
         const val KEY_ADULT = "adult_content"

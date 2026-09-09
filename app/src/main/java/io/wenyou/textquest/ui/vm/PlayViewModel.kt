@@ -20,6 +20,7 @@ import io.wenyou.textquest.data.model.StoryNode
 import io.wenyou.textquest.data.repo.LocalLibrary
 import io.wenyou.textquest.data.repo.SettingsStore
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -70,6 +71,9 @@ class PlayViewModel(
 
     private var session: SessionState? = null
 
+    /** 当前 AI 生成任务：新请求会先取消旧任务，避免重试/快速连点产生并发覆盖。 */
+    private var aiJob: Job? = null
+
     init {
         viewModelScope.launch {
             val story = library.stories.value.firstOrNull { it.id == storyId }
@@ -81,19 +85,17 @@ class PlayViewModel(
                 return@launch
             }
             val chars = library.characters.value.filter { it.id in story.characterIds }
-            val saveName = if (saveId.isNotBlank())
-                library.saves.value.firstOrNull { it.id == saveId }?.name ?: "" else ""
-            val base: SessionState = if (saveId.isNotBlank()) {
-                library.saves.value.firstOrNull { it.id == saveId }?.state ?: GameEngine.newSession(story)
-            } else {
-                GameEngine.newSession(story)
-            }
+            // “new” 是路由约定开新局的哨兵值，绝不能当成存档 id
+            val loadId = saveId.takeIf { it.isNotBlank() && it != "new" }
+            val loadedSlot = loadId?.let { library.saves.value.firstOrNull { x -> x.id == it } }
+            val saveName = loadedSlot?.name ?: ""
+            val base: SessionState = loadedSlot?.state ?: GameEngine.newSession(story)
             _ui.update {
                 it.copy(story = story, characters = chars, aiMode = story.mode == StoryMode.AI_DIRECTOR,
-                    activeSaveId = saveId.ifBlank { null }, saveName = saveName,
+                    activeSaveId = loadId, saveName = saveName,
                     providers = library.providers.value, selectedProviderId = null)
             }
-            beginPlay(story, base, isFresh = saveId.isBlank())
+            beginPlay(story, base, isFresh = loadedSlot == null)
         }
     }
 
@@ -196,6 +198,7 @@ class PlayViewModel(
     // ---------------- 玩家动作 ----------------
 
     fun chooseAuthored(index: Int) {
+        if (_ui.value.stage != PlayStage.AUTHORED) return
         val ui = _ui.value
         val story = ui.story ?: return
         val choices = ui.visibleChoices
@@ -229,6 +232,7 @@ class PlayViewModel(
     }
 
     fun chooseAi(index: Int) {
+        if (_ui.value.stage != PlayStage.AUTHORED) return
         val ui = _ui.value
         val story = ui.story ?: return
         val choice = ui.pendingAiChoices.getOrNull(index) ?: return
@@ -246,9 +250,10 @@ class PlayViewModel(
     fun aiExitToMainline() {
         val story = _ui.value.story ?: return
         val node = story.nodes[_ui.value.nodeId] ?: return
-        if (node.endTarget.isBlank()) return
+        val target = node.endTarget
+        if (target.isBlank() || target == node.id || !story.nodes.containsKey(target)) return
         _ui.update { it.copy(pendingAiChoices = emptyList(), aiDelta = "") }
-        advanceTo(node.endTarget)
+        advanceTo(target)
     }
 
     // ---------------- AI 场景 / 导演 ----------------
@@ -268,19 +273,37 @@ class PlayViewModel(
             }
             return
         }
+        // 上一轮还在生成（快速连点/超时兜底）时不允许再起一个并发请求
+        if (aiJob?.isActive == true) return
         _ui.update { it.copy(stage = PlayStage.AI_WORKING, aiDelta = "", pendingAiChoices = emptyList(), providerMissing = false) }
-        viewModelScope.launch {
+        launchAiJob { job ->
             try {
                 val scene = director.generateScene(profile, story, node, ui.characters, s, adult = story.adult) { delta ->
                     _ui.update { it.copy(aiDelta = it.aiDelta + delta) }
                 }
-                finishAiScene(scene.text, scene.choices)
+                if (job.isActive && aiJob === job) {
+                    finishAiScene(scene.text, scene.choices)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {
-                aiFailed(t)
+                if (job.isActive) aiFailed(t)
             }
         }
+    }
+
+    /** 在 [viewModelScope] 中串行执行 AI 请求：取消旧的、记录当前任务。 */
+    private fun launchAiJob(block: suspend (Job) -> Unit) {
+        aiJob?.cancel()
+        val job = viewModelScope.launch {
+            val self = coroutineContext[Job] ?: return@launch
+            try {
+                block(self)
+            } finally {
+                if (aiJob === self) aiJob = null
+            }
+        }
+        aiJob = job
     }
 
     private fun finishAiScene(text: String, choices: List<AiChoice>) {
@@ -295,10 +318,11 @@ class PlayViewModel(
                 appendEntries(listOf(LogEntry(EntryKind.NARRATION, text = text)))
             }
         }
-        val exit = node?.endTarget
+        // 只有指向真实存在的其它节点才算有效出口，避免死循环 / 跳到不存在的剧情
+        val exit = node?.endTarget?.takeIf { it.isNotBlank() && it != node.id && story.nodes.containsKey(it) }
         if (choices.isEmpty()) {
             _ui.update { it.copy(stage = PlayStage.AUTHORED, aiDelta = "", pendingAiChoices = emptyList(), visibleChoices = emptyList()) }
-            if (!exit.isNullOrBlank()) {
+            if (exit != null) {
                 advanceTo(exit)
             } else {
                 _ui.update { it.copy(lastMessage = "AI 没有给出选项——你可以点「继续」让故事延伸。") }
@@ -328,29 +352,34 @@ class PlayViewModel(
         val ui = _ui.value
         val story = ui.story ?: return
         if (story.mode != StoryMode.AI_DIRECTOR) return
+        val s = session ?: return
         val profile = provider()
         if (profile == null) {
             appendEntries(listOf(LogEntry(EntryKind.ERROR, speaker = "系统",
                 text = "AI 导演模式需要先配置并选择一家 AI 服务（「AI 服务」页）。")))
             return
         }
+        if (_ui.value.stage == PlayStage.AI_WORKING) return
         appendEntries(listOf(LogEntry(EntryKind.CHOICE, speaker = "你", text = trimmed)))
         _ui.update { it.copy(stage = PlayStage.AI_WORKING, aiDelta = "", pendingAiChoices = emptyList()) }
-        val s = session ?: return
-        viewModelScope.launch {
+        launchAiJob { job ->
             try {
                 val scene = director.directorTurn(profile, story, ui.characters, s, trimmed, adult = story.adult) { delta ->
                     _ui.update { it.copy(aiDelta = it.aiDelta + delta) }
                 }
-                if (scene.text.isNotBlank()) {
-                    appendEntries(listOf(LogEntry(EntryKind.DM, speaker = "AI 导演", text = scene.text)))
+                if (job.isActive && aiJob === job) {
+                    if (scene.text.isNotBlank()) {
+                        appendEntries(listOf(LogEntry(EntryKind.DM, speaker = "AI 导演", text = scene.text)))
+                    }
+                    _ui.update { it.copy(aiDelta = "", stage = PlayStage.DM_INPUT, pendingAiChoices = scene.choices) }
                 }
-                _ui.update { it.copy(aiDelta = "", stage = PlayStage.DM_INPUT, pendingAiChoices = scene.choices) }
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {
-                appendEntries(listOf(LogEntry(EntryKind.ERROR, speaker = "系统", text = "AI 导演出错：${AiDirector.errorMessage(t)}")))
-                _ui.update { it.copy(aiDelta = "", stage = PlayStage.DM_INPUT, pendingAiChoices = emptyList()) }
+                if (job.isActive) {
+                    appendEntries(listOf(LogEntry(EntryKind.ERROR, speaker = "系统", text = "AI 导演出错：${AiDirector.errorMessage(t)}")))
+                    _ui.update { it.copy(aiDelta = "", stage = PlayStage.DM_INPUT, pendingAiChoices = emptyList()) }
+                }
             }
         }
     }
@@ -374,6 +403,9 @@ class PlayViewModel(
 
     fun restart() {
         val story = _ui.value.story ?: return
+        // 若有生成任务未结束，先取消，避免旧结果写进新的一局
+        aiJob?.cancel()
+        aiJob = null
         val fresh = GameEngine.newSession(story)
         _ui.update {
             it.copy(activeSaveId = null, saveName = "", lastMessage = "",
@@ -407,7 +439,9 @@ class PlayViewModel(
 
     private fun appendEntries(entries: List<LogEntry>) {
         val s = session ?: return
-        session = s.copy(history = (s.history + entries).takeLast(600), updatedAt = System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        val stamped = entries.map { if (it.ts == 0L) it.copy(ts = now) else it }
+        session = s.copy(history = (s.history + stamped).takeLast(600), updatedAt = now)
         _ui.update { it.copy(session = session) }
     }
 }

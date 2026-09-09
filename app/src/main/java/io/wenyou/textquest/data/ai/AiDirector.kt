@@ -30,11 +30,8 @@ data class AiChoice(
 )
 
 /**
- * AI 导演：把「角色性格 + 世界观 + 最近剧情 + 变量快照」组装成提示词，
- * 调用 [ChatClient] 流式生成，并把模型的 JSON 输出解析为 [AiScene]。
- *
- * 设计要点：无论接的是哪家 API，都要求模型只输出一个 JSON 对象，
- * 规避不同厂商对 system/user/assistant 交替的差异。
+ * 拼提示词、调 [ChatClient] 流式生成，并把模型的 JSON 输出解析成 [AiScene]。
+ * 各家 API 都只要求模型输出一个 JSON 对象，省去处理厂商对消息交替格式的差异。
  */
 class AiDirector(private val client: ChatClient) {
 

@@ -40,16 +40,7 @@ data class ChatOptions(val temperature: Double = 0.85, val maxTokens: Int = 1024
 /** 调用失败（网络 / HTTP / 解析）时向用户展示的可读错误。 */
 class LlmException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
-/**
- * 多品牌流式聊天客户端。
- * 三种协议：
- *  - OpenAI 兼容（OpenAI / DeepSeek / Kimi / GLM / Qwen / 火山 / OpenRouter / Ollama…）：
- *    POST {base}/chat/completions，SSE `data:` 增量；
- *  - Anthropic Messages：POST /v1/messages，SSE content_block_delta；
- *  - Gemini：POST /models/{model}:streamGenerateContent?alt=sse，SSE candidates。
- *
- * 全部调用仅使用 [ApiProfile] 中用户填写的 key 与地址，key 不上传、不落日志。
- */
+/** 多品牌流式聊天客户端。OpenAI 兼容、Anthropic、Gemini 三种协议收敛到 [streamText]。 */
 class ChatClient(ok: OkHttpClient = defaultClient()) {
 
     private val client = ok
@@ -131,6 +122,9 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
                             cont.resumeWith(Result.failure(e))
                         } catch (t: Throwable) {
                             if (cont.isActive) cont.resumeWith(Result.failure(LlmException("读取响应失败：${t.message}", t)))
+                        } finally {
+                            // 无论成功/失败/取消都要释放连接，避免 OkHttp 连接泄漏
+                            try { response.close() } catch (_: Throwable) {}
                         }
                     }
                 })
@@ -153,28 +147,32 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
     suspend fun listModels(profile: ApiProfile): List<String> = withContext(Dispatchers.IO) {
         val call = listModelsCall(profile)
         val response = call.execute()
-        if (!response.isSuccessful) {
-            val body = response.body?.string()?.take(300) ?: ""
-            throw LlmException("HTTP ${response.code} 读取模型失败：${body.trim().ifBlank { "（无详情）" }}")
-        }
-        val text = response.body?.string().orEmpty()
-        val element = try {
-            if (text.isBlank()) null else AppJson.parseToJsonElement(text)
-        } catch (_: Throwable) {
-            null
-        } ?: return@withContext emptyList()
-        when (profile.kind) {
-            ProviderKind.OPENAI_COMPAT, ProviderKind.ANTHROPIC -> {
-                element.jsonObject["data"]?.jsonArray?.mapNotNull { item ->
-                    (item.jsonObject["id"] as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
-                } ?: emptyList()
+        try {
+            if (!response.isSuccessful) {
+                val body = response.body?.string()?.take(300) ?: ""
+                throw LlmException("HTTP ${response.code} 读取模型失败：${body.trim().ifBlank { "（无详情）" }}")
             }
-            ProviderKind.GEMINI -> {
-                element.jsonObject["models"]?.jsonArray?.mapNotNull { item ->
-                    (item.jsonObject["name"] as? JsonPrimitive)?.content
-                        ?.removePrefix("models/")?.takeIf { it.isNotBlank() }
-                } ?: emptyList()
+            val text = response.body?.string().orEmpty()
+            val element = try {
+                if (text.isBlank()) null else AppJson.parseToJsonElement(text)
+            } catch (_: Throwable) {
+                null
+            } ?: return@withContext emptyList()
+            when (profile.kind) {
+                ProviderKind.OPENAI_COMPAT, ProviderKind.ANTHROPIC -> {
+                    element.jsonObject["data"]?.jsonArray?.mapNotNull { item ->
+                        (item.jsonObject["id"] as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
+                    } ?: emptyList()
+                }
+                ProviderKind.GEMINI -> {
+                    element.jsonObject["models"]?.jsonArray?.mapNotNull { item ->
+                        (item.jsonObject["name"] as? JsonPrimitive)?.content
+                            ?.removePrefix("models/")?.takeIf { it.isNotBlank() }
+                    } ?: emptyList()
+                }
             }
+        } finally {
+            try { response.close() } catch (_: Throwable) {}
         }
     }
 
@@ -305,11 +303,14 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
         return when (kind) {
             ProviderKind.OPENAI_COMPAT -> {
                 val choice = root["choices"]?.jsonArray?.firstOrNull()?.jsonObject ?: return null
-                // 优先 delta.content；其次 message.content（部分端点只在最后一帧带全文）；推理类考虑 reasoning_content
                 val delta = choice["delta"]?.jsonObject
+                val message = choice["message"]?.jsonObject
+                // 优先 delta.content；若该帧 content 为 null（推理模型常先发
+                // reasoning_content），依次回退到 reasoning_content、末帧全文
                 val text = delta?.get("content")
-                    ?: choice["message"]?.jsonObject?.get("content")
-                    ?: delta?.get("reasoning_content")
+                    ?.takeIf { it !is JsonNull }
+                    ?: delta?.get("reasoning_content")?.takeIf { it !is JsonNull }
+                    ?: message?.get("content")
                 when (text) {
                     is JsonNull -> null
                     is JsonPrimitive -> text.content.takeUnless { it == "null" }
