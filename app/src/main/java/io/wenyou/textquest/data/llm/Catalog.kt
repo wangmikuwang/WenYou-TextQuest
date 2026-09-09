@@ -42,6 +42,10 @@ object ProviderCatalog {
             listOf("gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"), note = "官方生成式语言 API"),
         ProviderPreset("ollama", "Ollama（本地免费）", ProviderKind.OPENAI_COMPAT, "http://127.0.0.1:11434/v1",
             listOf("qwen2.5:7b", "llama3.1:8b", "gemma2:9b"), needsKey = false, note = "完全离线，无需 Key"),
+        ProviderPreset("mimo", "小米 MiMo（小米官方）", ProviderKind.OPENAI_COMPAT, "https://api.xiaomimimo.com/v1",
+            listOf("mimo-v2-flash", "mimo-v2-pro", "mimo-v2.5-pro", "mimo-v2-omni"),
+            needsKey = true,
+            note = "OpenAI 兼容；Key 以 sk- 开头（若用 Token Plan，地址改成 token-plan-cn.xiaomimimo.com/v1，Key 以 tp- 开头）"),
         ProviderPreset("custom", "自定义（OpenAI 兼容）", ProviderKind.OPENAI_COMPAT, "",
             emptyList(), note = "任意中转/私有端点填入 baseUrl")
     )
