@@ -9,12 +9,14 @@ import android.provider.MediaStore
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.DecodeHintType
+import com.google.zxing.EncodeHintType
 import com.google.zxing.LuminanceSource
 import com.google.zxing.MultiFormatReader
 import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeWriter
+import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import java.io.File
 
 /** 把一段文本编码成二维码位图，支持保存到本地，以及从位图识别二维码文本。 */
@@ -22,7 +24,13 @@ object QrCode {
     fun encode(content: String, size: Int = 640): Bitmap? {
         if (content.isBlank()) return null
         return try {
-            val matrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size)
+            // 容错等级 M + 加大留白：对“手机拍屏幕”产生的摩尔纹更有韧性
+            val hints: Map<EncodeHintType, Any> = mapOf(
+                EncodeHintType.CHARACTER_SET to "UTF-8",
+                EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.M,
+                EncodeHintType.MARGIN to 4
+            )
+            val matrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size, hints)
             val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
             for (x in 0 until size) {
                 for (y in 0 until size) {

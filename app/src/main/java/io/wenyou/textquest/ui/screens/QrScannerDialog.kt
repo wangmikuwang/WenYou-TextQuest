@@ -43,12 +43,15 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import io.wenyou.textquest.data.repo.ShareCode
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /** 全屏相机扫码：正方形识别框，ML Kit 识别（对高密度二维码更稳），识别到即回调文本。 */
 @Composable
@@ -65,7 +68,10 @@ fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
     LaunchedEffect(Unit) { if (!granted) permLauncher.launch(Manifest.permission.CAMERA) }
 
     var scanning by remember { mutableStateOf(true) }
+    var status by remember { mutableStateOf("识别中…") }
     val done = remember { AtomicBoolean(false) }
+    val collected = remember { ConcurrentHashMap<Int, String>() }
+    val pendingTotal = remember { AtomicInteger(0) }
     val scanner = remember {
         BarcodeScanning.getClient(
             BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
@@ -73,6 +79,29 @@ fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
     }
     val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
     val analyzerExecutor = remember { Executors.newSingleThreadExecutor() }
+
+    // 新线程判定；单张直读，分片则累积，收齐后回主线程
+    fun handleDetected(text: String) {
+        if (done.get()) return
+        val chunk = runCatching { ShareCode.parseChunk(text) }.getOrNull()
+        if (chunk != null) {
+            if (collected.putIfAbsent(chunk.index, chunk.data) == null) pendingTotal.set(chunk.total)
+            val total = pendingTotal.get()
+            val got = collected.size
+            if (total > 0 && got >= total) {
+                val assembled = ShareCode.assembleChunks(collected.toMap(), total)
+                if (assembled != null && done.compareAndSet(false, true)) {
+                    scanning = false
+                    mainExecutor.execute { onResult(assembled) }
+                }
+            } else {
+                mainExecutor.execute { status = "已识别 $got/${total.coerceAtLeast(1)}，继续扫描下一张…" }
+            }
+        } else if (done.compareAndSet(false, true)) {
+            scanning = false
+            mainExecutor.execute { onResult(text.trim()) }
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -95,6 +124,15 @@ fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.align(Alignment.Center).offset(y = frame + 20.dp)
+            )
+            Text(
+                status,
+                color = Color(0xFF8DFFA0),
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 48.dp)
             )
 
             IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding()) {
@@ -130,10 +168,7 @@ fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
                                     scanner.process(input)
                                         .addOnSuccessListener { barcodes ->
                                             val text = barcodes.firstOrNull { !it.rawValue.isNullOrBlank() }?.rawValue
-                                            if (text != null && done.compareAndSet(false, true)) {
-                                                scanning = false
-                                                mainExecutor.execute { onResult(text.trim()) }
-                                            }
+                                            if (text != null) handleDetected(text)
                                         }
                                         .addOnCompleteListener { image.close() }
                                 } else {
