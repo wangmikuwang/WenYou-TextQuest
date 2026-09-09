@@ -153,6 +153,12 @@ class LibraryViewModel(container: WenYouApp.AppContainer) : ViewModel() {
         return ShareCode.encode(AppBundle(characters = chars, stories = listOf(story)))
     }
 
+    /** 生成单个角色的分享码（角色不存在返回空串）。 */
+    fun shareCodeForCharacter(characterId: String): String {
+        val c = _characters.value.firstOrNull { it.id == characterId } ?: return ""
+        return ShareCode.encode(AppBundle(characters = listOf(c)))
+    }
+
     /** 从分享码导入：只补不覆盖，结果通过 onResult 回调（主线程执行）。 */
     fun importShareCode(code: String, onResult: (String) -> Unit) {
         val bundle = ShareCode.decode(code)

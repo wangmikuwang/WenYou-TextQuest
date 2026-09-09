@@ -1,5 +1,8 @@
 package io.wenyou.textquest.ui.screens
 
+import android.graphics.BitmapFactory
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -40,6 +44,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -53,6 +58,7 @@ import io.wenyou.textquest.ui.HubScaffold
 import io.wenyou.textquest.ui.R
 import io.wenyou.textquest.ui.common.EmojiBadge
 import io.wenyou.textquest.ui.common.Pill
+import io.wenyou.textquest.ui.common.QrCode
 import io.wenyou.textquest.ui.common.TonalCard
 import io.wenyou.textquest.ui.theme.avatarColor
 import io.wenyou.textquest.ui.vm.LibraryViewModel
@@ -66,9 +72,36 @@ fun CharactersScreen(container: WenYouApp.AppContainer, nav: NavHostController) 
     val totalCharacters by vm.totalCharacters.collectAsState()
     val filters by vm.filters.collectAsState()
     var pendingDelete by remember { mutableStateOf<CharacterData?>(null) }
+    var sharePicker by remember { mutableStateOf<CharacterData?>(null) }
+    var shareCodeChar by remember { mutableStateOf<CharacterData?>(null) }
+    var shareQrChar by remember { mutableStateOf<CharacterData?>(null) }
+    var importPicker by remember { mutableStateOf(false) }
+    var importText by remember { mutableStateOf(false) }
+    var scanning by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val albumPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            val bmp = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+            val text = bmp?.let { QrCode.decode(it) }
+            if (text.isNullOrBlank()) {
+                android.widget.Toast.makeText(context, "未识别到二维码", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                vm.importShareCode(text) { msg ->
+                    android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
 
     HubScaffold(
-        topBar = { CenterAlignedTopAppBar(title = { Text("角色") }) },
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = { Text("角色") },
+                actions = {
+                    TextButton(onClick = { importPicker = true }) { Text("导入码") }
+                }
+            )
+        },
         nav = nav
     ) { padding ->
         Box(Modifier.padding(padding).fillMaxSize()) {
@@ -97,6 +130,7 @@ fun CharactersScreen(container: WenYouApp.AppContainer, nav: NavHostController) 
                 } else {
                     items(characters, key = { it.id }) { c ->
                         CharacterCard(c, onEdit = { nav.navigate(R.charEdit(c.id)) },
+                            onShare = { sharePicker = c },
                             onDelete = { pendingDelete = c })
                     }
                 }
@@ -124,6 +158,55 @@ fun CharactersScreen(container: WenYouApp.AppContainer, nav: NavHostController) 
             dismissButton = {
                 TextButton(onClick = { pendingDelete = null }) { Text("取消") }
             }
+        )
+    }
+
+    sharePicker?.let { c ->
+        SharePickDialog(
+            title = c.name,
+            onCode = { shareCodeChar = c; sharePicker = null },
+            onQr = { shareQrChar = c; sharePicker = null },
+            onDismiss = { sharePicker = null }
+        )
+    }
+    shareCodeChar?.let { c ->
+        ShareTextDialog(
+            title = c.name,
+            code = vm.shareCodeForCharacter(c.id),
+            onDismiss = { shareCodeChar = null }
+        )
+    }
+    shareQrChar?.let { c ->
+        ShareQrDialog(
+            title = c.name,
+            code = vm.shareCodeForCharacter(c.id),
+            onDismiss = { shareQrChar = null }
+        )
+    }
+
+    if (importPicker) {
+        ImportPickDialog(
+            onText = { importText = true; importPicker = false },
+            onScan = { importPicker = false; scanning = true },
+            onAlbum = { importPicker = false; albumPicker.launch("image/*") },
+            onDismiss = { importPicker = false }
+        )
+    }
+    if (importText) {
+        ImportTextDialog(
+            onDismiss = { importText = false },
+            onImport = { code, cb -> vm.importShareCode(code, cb) }
+        )
+    }
+    if (scanning) {
+        QrScannerDialog(
+            onResult = { text ->
+                scanning = false
+                vm.importShareCode(text) { msg ->
+                    android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDismiss = { scanning = false }
         )
     }
 }
@@ -170,7 +253,7 @@ private fun CharacterEmptyState(title: String, body: String, showReset: Boolean,
 }
 
 @Composable
-private fun CharacterCard(c: CharacterData, onEdit: () -> Unit, onDelete: () -> Unit) {
+private fun CharacterCard(c: CharacterData, onEdit: () -> Unit, onShare: () -> Unit, onDelete: () -> Unit) {
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -195,6 +278,9 @@ private fun CharacterCard(c: CharacterData, onEdit: () -> Unit, onDelete: () -> 
                     }
                     if (c.adult) Pill("18+", container = MaterialTheme.colorScheme.tertiaryContainer)
                 }
+            }
+            IconButton(onClick = onShare) {
+                Icon(Icons.Filled.Share, "分享", tint = MaterialTheme.colorScheme.primary)
             }
             IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, "编辑") }
             IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, "删除", tint = MaterialTheme.colorScheme.outline) }
