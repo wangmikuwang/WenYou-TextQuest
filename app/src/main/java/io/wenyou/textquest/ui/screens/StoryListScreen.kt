@@ -470,7 +470,23 @@ fun ShareQrDialog(title: String, code: String, onDismiss: () -> Unit) {
                     clipboard.setText(AnnotatedString(code))
                     copied = true
                 }) { Text("复制") }
-                if (!isMulti && single != null) {
+                if (isMulti) {
+                    TextButton(onClick = {
+                        // 多片码无法存成单图，逐张编码保存到相册，便于离线获取整套码
+                        var saved = 0
+                        chunks.forEachIndexed { i, ch ->
+                            val qr = QrCode.encode(ch, 620)
+                            if (qr != null) {
+                                val loc = QrCode.saveToGallery(context, qr, "${title}_第${i + 1}张")
+                                if (loc != null) saved++
+                                qr.recycle()
+                            }
+                        }
+                        android.widget.Toast.makeText(context,
+                            if (saved > 0) "已保存 $saved 张二维码到相册" else "保存失败",
+                            android.widget.Toast.LENGTH_SHORT).show()
+                    }) { Text("逐张保存") }
+                } else if (single != null) {
                     TextButton(onClick = {
                         val loc = QrCode.saveToGallery(context, single, title)
                         android.widget.Toast.makeText(context,
@@ -513,7 +529,7 @@ fun ImportTextDialog(onDismiss: () -> Unit, onImport: (String, (String) -> Unit)
         text = {
             Column {
                 Text(
-                    "粘贴对方发来的分享码（以 WY1: 开头）。剧情与角色按 id 补入，不覆盖已有内容。",
+                    "粘贴对方发来的分享码（WY1:/WY2: 开头均可，新版为压缩码）。剧情与角色按 id 补入，不覆盖已有内容。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

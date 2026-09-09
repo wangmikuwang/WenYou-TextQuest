@@ -2,14 +2,22 @@ package io.wenyou.textquest.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.KSerializer
 
-/** 全局 JSON 配置：容忍新增字段、未知字段，便于手工编辑与跨版本迁移。 */
+/** 全局 JSON 配置：容忍新增字段、未知字段，便于手工编辑与跨版本迁移。
+ *
+ *  `coerceInputValues` 使无法映射的枚举值回落为字段默认值（而非整段解析失败），
+ *  因此手工编辑 providers.json 时 `kind` 写成 `OPENAI_COMPAT` 也能安全回落，不丢整段数据。 */
 val AppJson: Json = Json {
     ignoreUnknownKeys = true
     encodeDefaults = true
     explicitNulls = false
+    coerceInputValues = true
     prettyPrint = false
 }
 
@@ -18,11 +26,34 @@ val AppJson: Json = Json {
 // ---------------------------------------------------------------------------
 
 /** 协议类别：绝大多数国产/开源服务走 OpenAI 兼容协议。 */
-@Serializable
+@Serializable(with = ProviderKindSerializer::class)
 enum class ProviderKind(val label: String) {
     @SerialName("openai_compat") OPENAI_COMPAT("OpenAI 兼容（DeepSeek/Kimi/GLM/Qwen/OpenRouter…）"),
     @SerialName("anthropic") ANTHROPIC("Anthropic Claude"),
     @SerialName("gemini") GEMINI("Google Gemini")
+}
+
+/** [ProviderKind] 的容错序列化：兼容 `@SerialName` 与常量名（`openai_compat`/`OPENAI_COMPAT` 皆可）。 */
+@OptIn(kotlinx.serialization.InternalSerializationApi::class, kotlinx.serialization.ExperimentalSerializationApi::class)
+object ProviderKindSerializer : KSerializer<ProviderKind> {
+    private val byName: Map<String, ProviderKind> = buildMap {
+        for (c in ProviderKind.entries) {
+            put(c.name.lowercase(), c)
+            val sn = runCatching { ProviderKind::class.java.getField(c.name).getAnnotation(SerialName::class.java)?.value }
+                .getOrNull()
+            if (sn != null) put(sn.lowercase(), c)
+        }
+    }
+    override val descriptor: SerialDescriptor = kotlinx.serialization.descriptors.buildSerialDescriptor(
+        "ProviderKind", kotlinx.serialization.descriptors.SerialKind.ENUM
+    )
+    override fun serialize(encoder: Encoder, value: ProviderKind) =
+        encoder.encodeString(value.name)
+    override fun deserialize(decoder: Decoder): ProviderKind {
+        val raw = decoder.decodeString().trim()
+        if (raw.isEmpty()) return ProviderKind.OPENAI_COMPAT
+        return byName[raw.lowercase()] ?: ProviderKind.OPENAI_COMPAT
+    }
 }
 
 /** 用户配置的一条「服务接入」，key 仅保存在本机。 */
