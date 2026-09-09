@@ -91,17 +91,35 @@ android {
     }
 }
 
-// 每次对软件做修改，视为一次升级：运行 `gradlew bumpVersion`（+patch / +versionCode），再 assemble。
+// 版本号按 x.yy.zz 规则递增：
+//   patch（默认，仅 bug 修复）→ zz+1；zz 每满 100 进位到 yy 并归零 zz
+//   minor（新功能/重大变化）  → yy+1 且 zz=0；yy 每满 10 进位到 xx 并归零 yy
+//   major（重大架构/巨大功能） → xx+1 且 yy=zz=0
+// 用法：gradlew bumpVersion              （bug 修复）
+//       gradlew bumpVersion -Pbump=minor （新功能）
+//       gradlew bumpVersion -Pbump=major （重大变化）
 tasks.register("bumpVersion") {
     doLast {
         val f = rootProject.file("version.properties")
         val p = Properties().apply { f.inputStream().use { load(it) } }
-        val patch = (p.getProperty("versionPatch", "0").toIntOrNull() ?: 0) + 1
+        var major = p.getProperty("versionMajor", "1").toIntOrNull() ?: 1
+        var minor = p.getProperty("versionMinor", "1").toIntOrNull() ?: 1
+        var patch = p.getProperty("versionPatch", "0").toIntOrNull() ?: 0
         val code = (p.getProperty("versionCode", "1").toIntOrNull() ?: 1) + 1
+        val step = (project.findProperty("bump") as? String)?.trim()?.lowercase() ?: "patch"
+        when (step) {
+            "major" -> { major++; minor = 0; patch = 0 }
+            "minor" -> { minor++; patch = 0 }
+            else -> { patch++ }
+        }
+        if (patch > 99) { minor += patch / 100; patch %= 100 }
+        if (minor > 9) { major += minor / 10; minor %= 10 }
+        p["versionMajor"] = major.toString()
+        p["versionMinor"] = minor.toString()
         p["versionPatch"] = patch.toString()
         p["versionCode"] = code.toString()
-        FileOutputStream(f).use { p.store(it, "WenYou version; run 'gradlew bumpVersion' then assemble") }
-        println("已升版 -> ${p["versionMajor"]}.${p["versionMinor"]}.$patch（versionCode=$code）")
+        FileOutputStream(f).use { p.store(it, "WenYou version x.yy.zz; run 'gradlew bumpVersion(-Pbump=patch|minor|major)' then assemble") }
+        println("已升版 -> $major.$minor.$patch（versionCode=$code，step=$step）")
     }
 }
 

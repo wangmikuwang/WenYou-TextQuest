@@ -154,7 +154,13 @@ sequenceDiagram
 ./gradlew :app:assembleBetaDebug
 ```
 
-版本号维护在 `version.properties`；执行 `./gradlew bumpVersion` 会递增 `patch` 与 `versionCode`（任务定义于 `app/build.gradle.kts`）。正式打包前应先执行该任务。
+版本号按 `x.yy.zz` 规则维护在 `version.properties`；执行 `./gradlew bumpVersion` 递增：
+
+- `bumpVersion`（默认 / `-Pbump=patch`）：仅 bug 修复，`zz` +1（范围 0–99，满 100 进位到 `yy`）。
+- `-Pbump=minor`：新功能或重大变化，`yy` +1 且 `zz` 归零（`yy` 范围 0–9，满 10 进位到 `xx`）。
+- `-Pbump=major`：重大架构变化或巨大功能增加，`xx` +1 且 `yy=zz=0`。
+
+`versionCode` 在每次 `bumpVersion` 时单调递增。正式打包前应先执行该任务。
 
 ## 目录结构
 
