@@ -146,7 +146,10 @@ class LibraryViewModel(container: WenYouApp.AppContainer) : ViewModel() {
     fun deleteCharacter(id: String) = viewModelScope.launch { library.deleteCharacter(id) }
     fun deleteProvider(id: String) = viewModelScope.launch { library.deleteProvider(id) }
 
-    /** 生成一部剧情的分享码（含其引用的角色；剧情不存在返回空串）。 */
+    /** 生成一部剧情的分享码（含其引用的角色；剧情不存在返回空串）。
+     *
+     *  注意：仅打包「当前仍存在」且被剧情引用的角色。若某角色 id 已被删除但仍被
+     *  剧情引用，则跳过该 id（而非打包一个不存在角色），避免对方导入后出现空角色。 */
     fun shareCodeFor(storyId: String): String {
         val story = _stories.value.firstOrNull { it.id == storyId } ?: return ""
         val chars = _characters.value.filter { it.id in story.characterIds }

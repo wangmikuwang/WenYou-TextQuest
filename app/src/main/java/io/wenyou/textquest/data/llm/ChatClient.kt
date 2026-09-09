@@ -108,7 +108,10 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
                                         else { full.append(d.text); onDelta(d.text) }
                                     }
                                 }
-                                if (cont.isActive) cont.resumeWith(Result.success(ChatResult(full.toString(), reasoningFull.toString())))
+                                // 流已结束（[DONE] 或响应流结束）但正文仍为空：视为失败，避免用户看到无提示的空白
+                                if (full.isBlank() && reasoningFull.isBlank()) {
+                                    if (cont.isActive) cont.resumeWith(Result.failure(LlmException("AI 未返回任何文本（可能被内容安全拦截或模型静默），请重试或换条提示。")))
+                                } else if (cont.isActive) cont.resumeWith(Result.success(ChatResult(full.toString(), reasoningFull.toString())))
                             } catch (e: CancellationException) {
                                 cont.resumeWith(Result.failure(e))
                             } catch (t: Throwable) {

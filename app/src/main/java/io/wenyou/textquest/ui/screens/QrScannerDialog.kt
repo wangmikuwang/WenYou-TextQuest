@@ -85,7 +85,20 @@ fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
         if (done.get()) return
         val chunk = runCatching { ShareCode.parseChunk(text) }.getOrNull()
         if (chunk != null) {
-            if (collected.putIfAbsent(chunk.index, chunk.data) == null) pendingTotal.set(chunk.total)
+            // 同一会话只应扫一套分享码：若出现与已收集「不同维度」的分片（index/total 超界或冲突），
+            // 视为切到了另一套码，重置已收分片，避免跨套拼接出错误内容。
+            if (collected.isNotEmpty()) {
+                val knownTotal = pendingTotal.get()
+                val dimensionChanged = chunk.total != knownTotal || chunk.index > chunk.total ||
+                    collected.keys.any { it > chunk.total } || chunk.index !in (1..chunk.total)
+                if (dimensionChanged && knownTotal > 0) {
+                    collected.clear()
+                    pendingTotal.set(chunk.total)
+                }
+            }
+            if (collected.putIfAbsent(chunk.index, chunk.data) == null && pendingTotal.get() == 0) {
+                pendingTotal.set(chunk.total)
+            }
             val total = pendingTotal.get()
             val got = collected.size
             if (total > 0 && got >= total) {
@@ -193,6 +206,11 @@ fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
 
     DisposableEffect(Unit) {
         onDispose {
+            // 用 addListener 而非同步 get()，避免在主线程等待 CameraProvider（通常已就绪，但仍防卡顿）
+            val future = ProcessCameraProvider.getInstance(context)
+            future.addListener({
+                runCatching { future.get().unbindAll() }
+            }, ContextCompat.getMainExecutor(context))
             analyzerExecutor.shutdown()
             scanner.close()
         }
