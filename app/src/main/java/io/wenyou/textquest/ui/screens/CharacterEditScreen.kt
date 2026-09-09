@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import io.wenyou.textquest.BuildConfig
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.data.model.CharacterMetrics
 import io.wenyou.textquest.data.model.SexualOrientation
@@ -140,13 +141,16 @@ fun CharacterEditScreen(container: WenYouApp.AppContainer, nav: NavHostControlle
                         placeholder = "写本角色必须无条件遵守的底层规则……会拼接到该角色人设的最底部。",
                         supporting = "置于该角色人设最底，冲突时以此层为准；留空则不注入。")
                     Spacer(Modifier.padding(top = 8.dp))
-                    AppDropdown(
-                        label = "性取向",
-                        options = SexualOrientation.entries.map { it.label to it },
-                        selected = char.orientation,
-                        onSelect = { vm.setOrientation(it) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    // 性取向选择仅在文游α提供（β 版不含 lgbt 元素）
+                    if (BuildConfig.BUILTIN_CONTENT) {
+                        AppDropdown(
+                            label = "性取向",
+                            options = SexualOrientation.entries.map { it.label to it },
+                            selected = char.orientation,
+                            onSelect = { vm.setOrientation(it) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 }
             }
             item { SectionHeader("初始状态（开局沿用）") }

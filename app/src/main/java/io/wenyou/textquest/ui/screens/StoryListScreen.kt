@@ -46,7 +46,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import io.wenyou.textquest.BuildConfig
 import io.wenyou.textquest.WenYouApp
+import io.wenyou.textquest.data.model.ContentClass
 import io.wenyou.textquest.data.model.NodeKind
 import io.wenyou.textquest.data.model.SaveSlot
 import io.wenyou.textquest.data.model.Story
@@ -89,8 +91,10 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
                     )
                 }
                 item {
+                    val contentOptions = if (BuildConfig.BUILTIN_CONTENT) StoryContentFilter.entries
+                    else StoryContentFilter.entries.filter { it != StoryContentFilter.LGBT }
                     FilterChipRow(
-                        options = StoryContentFilter.entries,
+                        options = contentOptions,
                         selected = filters.contentFilter,
                         label = { it.label },
                         onSelect = { vm.setContentFilter(it) }
@@ -256,9 +260,13 @@ private fun StoryCard(story: Story, onEdit: () -> Unit, onPlay: () -> Unit, onSa
                 Spacer(Modifier.padding(top = 6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Pill(story.mode.label)
-                    Pill(storyContentClass(story).label,
-                        container = if (story.adult) MaterialTheme.colorScheme.tertiaryContainer
-                        else MaterialTheme.colorScheme.secondaryContainer)
+                    // β 版不含 lgbt 元素：不渲染 LGBT 内容分类标记
+                    val cls = storyContentClass(story)
+                    if (!(BuildConfig.BARE_CONTENT && cls == ContentClass.LGBT)) {
+                        Pill(cls.label,
+                            container = if (story.adult) MaterialTheme.colorScheme.tertiaryContainer
+                            else MaterialTheme.colorScheme.secondaryContainer)
+                    }
                     Pill("${story.nodes.size} 节点")
                     if (aiNodes > 0) Pill("AI×$aiNodes", container = MaterialTheme.colorScheme.tertiaryContainer)
                     if (story.characterIds.isNotEmpty())

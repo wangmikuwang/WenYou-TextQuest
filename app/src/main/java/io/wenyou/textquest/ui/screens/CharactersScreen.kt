@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import io.wenyou.textquest.BuildConfig
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.data.model.CharacterData
 import io.wenyou.textquest.data.model.SexualOrientation
@@ -76,10 +77,13 @@ fun CharactersScreen(container: WenYouApp.AppContainer, nav: NavHostController) 
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 item {
-                    OrientationFilterRow(
-                        selected = filters.orientationFilter,
-                        onSelect = { vm.setOrientationFilter(it) }
-                    )
+                    // 性取向筛选仅在文游α提供（β 版不含 lgbt 元素）
+                    if (BuildConfig.BUILTIN_CONTENT) {
+                        OrientationFilterRow(
+                            selected = filters.orientationFilter,
+                            onSelect = { vm.setOrientationFilter(it) }
+                        )
+                    }
                 }
                 if (characters.isEmpty()) {
                     item {
@@ -185,9 +189,11 @@ private fun CharacterCard(c: CharacterData, onEdit: () -> Unit, onDelete: () -> 
                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
                 Spacer(Modifier.padding(top = 6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Pill(c.orientation.label, container = MaterialTheme.colorScheme.secondaryContainer)
+                    if (BuildConfig.BUILTIN_CONTENT) {
+                        Pill(c.orientation.label, container = MaterialTheme.colorScheme.secondaryContainer)
+                        if (c.lgbt) Pill("LGBT", container = MaterialTheme.colorScheme.tertiaryContainer)
+                    }
                     if (c.adult) Pill("18+", container = MaterialTheme.colorScheme.tertiaryContainer)
-                    if (c.lgbt) Pill("LGBT", container = MaterialTheme.colorScheme.tertiaryContainer)
                 }
             }
             IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, "编辑") }
