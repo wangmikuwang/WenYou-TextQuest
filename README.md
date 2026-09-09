@@ -2,6 +2,125 @@
 
 运行于 Android 的文字冒险游戏平台：支持完全离线的分支剧情，也支持接入第三方大模型 API 获得 AI 场景生成与 AI 导演自由模式。技术栈为 Kotlin、Jetpack Compose、Material 3；所有数据以 JSON 保存在应用私有目录。
 
+## 功能
+
+- 节点式分支引擎：节点分为叙述（`NARRATION`）、AI 生成场景（`AI`）、结局（`ENDING`）三类。支持节点进入效果、选项显示条件与选择效果、数值变量、场景标记、掷骰，以及 `${变量}` 文本插值，实现在 `data/engine/GameEngine.kt`。
+- 角色卡：以名字、Emoji、性格、说话风格、背景、台词示范等字段构成角色人设，编辑后注入 AI 系统提示；对局中可维护角色的 0..100 状态值与标记，定义见 `data/model/CharacterMetrics.kt`。
+- 多品牌 AI 接入：OpenAI 兼容协议覆盖 DeepSeek、Kimi、GLM、Qwen、豆包、OpenRouter、硅基流动、小米 MiMo、Ollama 等服务；Anthropic 与 Gemini 分别走 Messages API 与 `streamGenerateContent` 原生协议。统一为 SSE 流式输出，提供连接测试与模型列表拉取。
+- 对局存档：支持随时存档、主页续玩，以及整包 JSON 导出 / 导入。
+
+## 玩法模式
+
+| 模式 | 玩法 | 是否依赖 AI | 适用场景 |
+| --- | --- | --- | --- |
+| 分支剧本（`SCRIPT`） | 作者预编排节点与选项，引擎按条件、效果、掷骰推进 | 否，完全离线 | 结构可控的多线叙事、多结局 |
+| AI 场景节点 | 分支骨架中插入 `AI` 节点，由模型生成正文与动态选项，可通过主线出口接回作者节点 | 是 | 框架稳定、局部自由发挥 |
+| AI 导演（`AI_DIRECTOR`） | 整局自由对话推进，模型同时扮演角色与主持人，维护世界观与人设一致性 | 是 | 开放结局的探索式叙事 |
+
+## 架构总览
+
+应用按“UI → ViewModel → 容器服务 → 引擎 / 网络 / 持久化”分层。`WenYouApp.AppContainer` 为手写依赖注入入口，不引入 Hilt：
+
+```mermaid
+flowchart TB
+    subgraph UI["ui/ · Compose"]
+        S[Screen 页面]
+        VM[ViewModel]
+    end
+
+    subgraph CORE["WenYouApp.AppContainer"]
+        ENG[GameEngine 分支引擎]
+        DIR[AiDirector 提示词与解析]
+        CL[ChatClient 流式客户端]
+        LIB[LocalLibrary JSON 资料库]
+        ST[SettingsStore 设置]
+    end
+
+    subgraph EXT["外部"]
+        F[JSON 文件 · saves/stories/characters/providers]
+        API[第三方 LLM API]
+    end
+
+    S --> VM
+    VM --> ENG
+    VM --> DIR
+    VM --> LIB
+    VM --> ST
+    DIR --> CL
+    LIB --> F
+    CL --> API
+```
+
+对局页由 `PlayViewModel` 统一驱动状态机，三种玩法共用同一套阶段：
+
+```mermaid
+stateDiagram-v2
+    [*] --> INIT
+    INIT --> AUTHORED : 分支剧本载入 / 读档
+    INIT --> DM_INPUT : AI 导演载入
+    INIT --> STOPPED : 剧情或节点缺失
+
+    AUTHORED --> AI_WORKING : 选择进入 AI 节点 / 继续生成
+    AUTHORED --> STOPPED : 抵达结局 / 无后续分支
+    AUTHORED --> AUTHORED : 选项指回本节点，不重复正文
+
+    DM_INPUT --> AI_WORKING : 玩家输入 / 采用灵感
+    AI_WORKING --> AUTHORED : 场景生成完成（返回动态选项）
+    AI_WORKING --> DM_INPUT : 导演回复完成
+    AI_WORKING --> STOPPED : 生成失败
+```
+
+对局页「重开本局」会丢弃当前会话并重新执行开局流程：分支剧本回到起始节点（若起始节点为 AI 节点则直接进入 `AI_WORKING`），AI 导演剧本回到 `DM_INPUT`。
+
+## AI 生成链路
+
+每次生成先拼提示词（人设卡、最近剧情、变量与角色状态快照），再以 SSE 逐帧接收文本增量驱动打字机，结束后把完整输出解析为结构化结果：
+
+```mermaid
+sequenceDiagram
+    participant P as PlayViewModel
+    participant D as AiDirector
+    participant C as ChatClient
+    participant A as LLM API
+    participant U as UI 状态
+
+    P->>D: generateScene / directorTurn
+    D->>C: streamText(system, user)
+    C->>A: POST（stream=true）
+    loop SSE data 帧
+        A-->>C: 文本增量
+        C-->>P: onDelta
+        P-->>U: 打字机追加显示
+    end
+    C-->>D: 完整文本
+    D->>D: parseScene → 提取 JSON
+    D-->>P: AiScene(text, choices)
+```
+
+### 协议适配
+
+三类 `ProviderKind` 的端点与解析路径如下，实现集中在 `data/llm/ChatClient.kt`：
+
+| 协议 | 聊天端点 | 增量字段 | 模型列表端点 |
+| --- | --- | --- | --- |
+| OpenAI 兼容 | `POST {base}/chat/completions` | `choices[0].delta.content`，推理模型回退 `reasoning_content` | `GET {base}/models`，取 `data[].id` |
+| Anthropic | `POST {base}/v1/messages` | `content_block_delta` 的 `delta.text` | `GET {base}/v1/models`，取 `data[].id` |
+| Gemini | `POST {base}/models/{model}:streamGenerateContent?alt=sse` | `candidates[0].content.parts[].text` | `GET {base}/models?pageSize=1000`，取 `models[].name`（去 `models/` 前缀） |
+
+模型输出约定为单个 JSON 对象，由 `AiDirector.parseScene` 解析：
+
+```json
+{
+  "text": "本幕正文……",
+  "choices": [
+    { "text": "选项一" },
+    { "text": "带主线出口的选项[to:node_id]" }
+  ]
+}
+```
+
+`[to:节点id]` 标记仅用于 AI 场景节点接回作者分支；解析失败时整段文本作为正文保留，不中断对局。
+
 ## 版本（Product Flavors）
 
 工程定义两个可独立安装的 flavor：
@@ -11,12 +130,18 @@
 
 构建配置见 `app/build.gradle.kts`。内容开关只影响列表过滤，不删除本地数据；过滤逻辑位于 `ui/vm/LibraryViewModel.kt`。
 
-## 功能
+## 数据与预设
 
-- 节点式分支引擎：节点分为叙述（`NARRATION`）、AI 生成场景（`AI`）、结局（`ENDING`）三类。支持节点进入效果、选项显示条件与选择效果、数值变量、场景标记、掷骰，以及 `${变量}` 文本插值，实现在 `data/engine/GameEngine.kt`。
-- 角色卡：以名字、Emoji、性格、说话风格、背景、台词示范等字段构成角色人设，编辑后注入 AI 系统提示；对局中可维护角色的 0..100 状态值与标记，定义见 `data/model/CharacterMetrics.kt`。
-- 多品牌 AI 接入：OpenAI 兼容协议覆盖 DeepSeek、Kimi、GLM、Qwen、豆包、OpenRouter、硅基流动、小米 MiMo、Ollama 等服务；Anthropic 与 Gemini 分别走 Messages API 与 `streamGenerateContent` 原生协议。统一为 SSE 流式输出，提供连接测试与模型列表拉取，客户端实现见 `data/llm/ChatClient.kt`，品牌预设见 `data/llm/Catalog.kt`。
-- 对局存档：支持随时存档、主页续玩，以及整包 JSON 导出 / 导入。
+运行时数据分四个 JSON 文件存于应用私有目录，字段均对手工编辑友好：
+
+| 文件 | 内容 | 维护入口 |
+| --- | --- | --- |
+| `providers.json` | AI 服务档案（品牌、baseUrl、Key、模型） | 「AI 服务」页 |
+| `characters.json` | 角色卡 | 「角色」页 |
+| `stories.json` | 剧情节点图与会话设置 | 「剧情」编辑器 |
+| `saves.json` | 存档（含日志与角色状态快照） | 对局内 / 主页 |
+
+内置题材预设以 `assets/presets/*.json` 提供，启动时检查合并状态：尚未合并过的包按 id 并入资料库，规则为只补不覆盖；已合并的文件记录在 `SettingsStore` 的 `preset_files_applied_v2` 中，避免重复导入。`presets/` 目录下的 PowerShell 脚本可重新生成这些资源。
 
 ## 构建
 
@@ -49,4 +174,4 @@ app/src/main/java/io/wenyou/textquest/
 - 未引入 Hilt 与 Room：依赖注入在 `WenYouApp` 中手动完成，持久化直接读写 JSON 文件。该方案减少了框架与迁移成本，但所有写入需要由调用方保证串行；备份即复制文件。
 - AI 上下文取最近 `historyWindow` 条日志，超出部分自动截断，以避免提示词超长。
 - 流式生成结束前不写入对局日志，因此生成过程中无法保存“半句”内容；整段结束后存档即为一致状态。
-- 内置预设包按资源文件名记录合并状态（`SettingsStore` 的 `preset_files_applied_v2`），合并规则为按 id 只补不覆盖；用户已删除的内置内容不会在后续启动时被自动写回。
+- 用户已删除的内置内容不会在后续启动时被自动写回。
