@@ -323,10 +323,11 @@ private fun ShareTextDialog(story: Story, code: String, onDismiss: () -> Unit) {
     )
 }
 
-/** 二维码弹窗：仅展示可扫二维码，附带复制文本兜底；放不下时提示改用分享码。 */
+/** 二维码弹窗：展示可扫二维码，支持保存到本地；放不下时提示改用分享码。 */
 @Composable
 private fun ShareQrDialog(story: Story, code: String, onSwitchText: () -> Unit, onDismiss: () -> Unit) {
     val clipboard = LocalClipboardManager.current
+    val context = LocalContext.current
     var copied by remember { mutableStateOf(false) }
     val qr = remember(code) { QrCode.encode(code, 640) }
     AlertDialog(
@@ -367,6 +368,16 @@ private fun ShareQrDialog(story: Story, code: String, onSwitchText: () -> Unit, 
                     clipboard.setText(AnnotatedString(code))
                     copied = true
                 }) { Text("复制文本") }
+                if (qr != null) {
+                    TextButton(onClick = {
+                        val loc = QrCode.saveToGallery(context, qr, story.title)
+                        android.widget.Toast.makeText(
+                            context,
+                            if (loc != null) "已保存到 $loc" else "保存失败",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }) { Text("保存") }
+                }
                 if (qr == null) {
                     TextButton(onClick = onSwitchText) { Text("改用分享码") }
                 }
