@@ -27,6 +27,70 @@ private val TEXT_FIELD = Regex("\"text\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"")
 /** 判断一段文本是否像“JSON 信封”（含顶层 text/choices 键）。 */
 private val JSON_ENVELOPE = Regex("\"\\s*(text|choices)\\s*\"\\s*:")
 
+/** 行首 markdown 符号：`-`/`*`/`1.`/`>`/`#` 等，剥掉后保留内容。 */
+private val MD_LINE_LEAD = Regex("""(?m)^\s{0,3}(?:[-*+]\s+|\d+[.)]\s+|>+\s*|#{1,6}\s+)\s*""")
+
+/** 行内 markdown：`**x**`、`*x*`、`__x__`、`_x_`、`` `x` ``、`~~x~~`。 */
+private val MD_INLINE = Regex("""\*\*|__|~~|(?<!\*)\*(?!\*)|(?<!`)[`](?!`)|(?<!_)_(?!_)""")
+
+private val MD_IMAGE = Regex("""!\[[^\]]*]\([^)]*\)""")
+private val MD_LINK = Regex("""\[([^\]]*)]\([^)]*\)""")
+
+/** 思考痕迹 / 导演自我对话的常见开头词。命中即大概率是思考泄漏。
+ *
+ *  刻意保守：只保留「模型自述/导演旁白」特征明显的词，避免误删角色台词
+ *  （如角色说的“让我想想…”“我想……”）。戏内台词与旁白难以完美区分，宁可少删。 */
+private val THINK_LEAD = listOf(
+    "作为导演", "作为 AI", "作为助手", "作为主持人", "作为文字冒险",
+    "好的，我来", "好的，我", "让我来", "下面我", "接下来我", "现在我",
+    "我打算", "我准备", "我先", "我的计划", "我的构思", "让我想想如何",
+    "我来构思", "我来续写", "我决定", "我将", "综上", "综上所述",
+    "思考过程", "内心独白"
+)
+
+/** markdown 引用的表格符 / 分隔线（表格行 `---`、`|` 分隔）。 */
+private val MD_TABLE = Regex("""(?m)^\s*\|?[\s:|-]+\|?\s*$""")
+
+private fun cleanMarkdown(s: String): String {
+    var t = s
+    t = MD_IMAGE.replace(t, "")
+    t = MD_LINK.replace(t, "$1")
+    t = MD_INLINE.replace(t, "")
+    t = MD_TABLE.replace(t, "")
+    t = MD_LINE_LEAD.replace(t, "")
+    // 折叠 3 个以上连续换行为 2 个（段落分隔），并去掉首尾空白与孤立空行
+    t = t.replace(Regex("""\n{3,}"""), "\n\n").trim()
+    return t
+}
+
+private fun stripThinkingLeaks(s: String): String {
+    // 独立成行的导演式自我对话 / 计划，直接剔除该行（这类行不属于正文或角色台词）
+    val lines = s.lines().filter { line ->
+        val t = line.trim()
+        if (t.isEmpty()) return@filter true
+        val lead = THINK_LEAD.any { t.startsWith(it) && t.length < 60 }
+        val leakToken = t.contains("思考过程") || t.contains("内心独白") ||
+            t.startsWith("（思考") || t.startsWith("[思考")
+        !(lead || leakToken)
+    }
+    return lines.joinToString("\n").trim()
+}
+
+/** AI 生成正文的后处理：去 markdown、剔思考痕迹、合并空行。 */
+private fun sanitizeProse(raw: String): String {
+    var t = raw.trim()
+    if (t.isEmpty()) return t
+    // 模型把「思考+正文」同灌进 text 时，通常以换行/分隔线隔开：先按常见思考段落头切出正文段
+    val cut = listOf("----", "——正文——", "【正文】", "正文如下", "以下是正文", "总结：", "综上所述")
+    for (c in cut) {
+        val idx = t.indexOf(c)
+        if (idx in 1 until t.length - 2) t = t.substring(0, idx).trim()
+    }
+    t = stripThinkingLeaks(t)
+    t = cleanMarkdown(t)
+    return t.trim()
+}
+
 /** 一次 AI 生成的结果：正文 + 动态选项（选项可能带 [to:节点] 出口标记）。 */
 @Serializable
 data class AiScene(
@@ -161,6 +225,7 @@ class AiDirector(private val client: ChatClient) {
             append("要求：只用中文；不得提及你是 AI 或本指令；不得输出 JSON 以外的任何文字。\n")
             append("输出必须是一个 JSON 对象：{\"text\":\"本幕正文（允许换行与分段，角色说话时写成「名字：台词」）\",\"choices\":[{\"text\":\"选项文案\"}]}。\n")
             append("严禁在输出里出现任何思考、构思、计划、分析或「好的/我会/让我/要不要/接下来/作为导演」等自我对话或导演说明；text 字段只能写场景正文与台词，一切构思请先在心里完成，绝不写进 text。\n")
+            append("正文与选项均为纯文本：不要使用 markdown 语法（如 **加粗**、- 列表、# 标题、*斜体*、> 引用、``` 代码块）；不要输出任何思考、概要、计划、总结或导演式旁白。\n")
             append("若有可选的构思/计划，把它放进思考过程（reasoning_content），不要出现在正文。\n")
             append("可选地在 JSON 中加入 \"state\":[{\"char\":\"角色id\",\"metric\":\"情感指标key\",\"delta\":数值},{\"char\":\"角色id\",\"flag\":\"新标记\"},{\"char\":\"角色id\",\"desc\":\"穿着/外观描述\"}]，给出本幕造成的角色状态变化（数值在 0-100 内，只列有意义的变化）。指标 key：affection/trust/mood/energy/health/fatigue/arousal。\n")
             if (node.endTarget.isNotBlank()) {
@@ -199,6 +264,7 @@ class AiDirector(private val client: ChatClient) {
             append("要求：只用中文叙述；保持已发生的事实一致；不要替玩家做决定；不要输出任何指令说明。\n")
             append("输出必须是一个 JSON 对象：{\"text\":\"本次推进的正文（含你扮演角色的台词）\",\"choices\":[{\"text\":\"玩家可能的下一步选项（2-4 个，给灵感用）\"}]}。\n")
             append("严禁在输出里出现任何思考、构思、计划、分析或「好的/我会/让我/要不要/接下来」等自我对话或主持人说明；text 字段只能写推进的正文与台词，一切构思请先在心里完成，绝不写进 text。\n")
+            append("正文与选项均为纯文本：不要使用 markdown 语法（如 **加粗**、- 列表、# 标题、*斜体*、> 引用、``` 代码块）；不要输出任何思考、概要、计划、总结或导演式旁白。\n")
             append("若有可选的构思/计划，把它放进思考过程（reasoning_content），不要出现在正文。\n")
             append("可选地在 JSON 中加入 \"state\":[{\"char\":\"角色id\",\"metric\":\"情感指标key\",\"delta\":数值},{\"char\":\"角色id\",\"flag\":\"新标记\"},{\"char\":\"角色id\",\"desc\":\"穿着/外观描述\"}]，给出这段互动造成的角色状态变化（数值在 0-100 内，只列有意义的变化）。指标 key：affection/trust/mood/energy/health/fatigue/arousal。\n")
             append("若玩家表达了收尾意愿，请自然地给出结局感并让 choices 为空数组。\n")
@@ -220,13 +286,25 @@ class AiDirector(private val client: ChatClient) {
 
     // ---------------- JSON 解析 ----------------
 
+    /** 对解析出的 [AiScene] 做最终清理：剥 markdown、剔思考泄漏、清洗选项文案。 */
+    private fun sanitizeScene(scene: AiScene): AiScene {
+        val newText = sanitizeProse(scene.text)
+        if (scene.choices.isEmpty() && newText == scene.text) return scene
+        val newChoices = scene.choices.map { c -> c.copy(text = sanitizeProse(c.text).take(120)) }
+        return AiScene(newText, newChoices, scene.reasoning, scene.stateEffects)
+    }
+
     /** 优先解析正文；正文缺失时尝试思考内容。若答案实为从思考中解析而来，则不再把它当“思考过程”展示。 */
     private fun resolveScene(result: ChatResult): AiScene {
         val fromContent = parseScene(result.content)
-        if (fromContent.text.isNotBlank()) return fromContent.copy(reasoning = result.reasoning)
+        // 正文非空即用；若清洗后正文被剥空（例如模型把思考写进 content），再回退尝试 reasoning
+        if (fromContent.text.isNotBlank()) {
+            val cleaned = sanitizeScene(fromContent.copy(reasoning = result.reasoning))
+            if (cleaned.text.isNotBlank()) return cleaned
+        }
         val fromReasoning = parseScene(result.reasoning)
-        if (fromReasoning.text.isNotBlank()) return fromReasoning.copy(reasoning = "")
-        return fromContent.copy(reasoning = result.reasoning)
+        if (fromReasoning.text.isNotBlank()) return sanitizeScene(fromReasoning.copy(reasoning = ""))
+        return sanitizeScene(fromContent.copy(reasoning = result.reasoning))
     }
 
     fun parseScene(raw: String): AiScene {
@@ -248,18 +326,18 @@ class AiDirector(private val client: ChatClient) {
                         next = marker?.groupValues?.get(1)?.trim() ?: c.next.trim()
                     )
                 }.take(6)
-                if (text.isNotEmpty()) return AiScene(text, choices)
+                if (text.isNotEmpty()) return sanitizeScene(AiScene(text, choices))
             } catch (_: Throwable) {
                 // 容错：落到下方按字段抽取
             }
         }
         // 模型偶尔给出畸形 / 带代码围栏的 JSON：直接从文本里抠出 text 字段
         val fallback = extractTextField(json ?: cleaned)
-        if (fallback.isNotBlank()) return AiScene(text = fallback)
+        if (fallback.isNotBlank()) return sanitizeScene(AiScene(text = fallback))
         // 纯文本（无 JSON 结构）：去掉围栏后作为正文；仅当真的像 JSON 信封（含 text/choices 键）才视为泄漏丢弃
         val prose = stripJsonFence(cleaned)
         if (JSON_ENVELOPE.containsMatchIn(prose)) return AiScene()
-        return AiScene(text = prose.take(2000))
+        return sanitizeScene(AiScene(text = prose.take(2000)))
     }
 
     /** 从任意文本（可能是漏解析的 JSON 原文）里抽取顶层 "text" 字段值并反转义；优先取 choices 之前的正文。 */

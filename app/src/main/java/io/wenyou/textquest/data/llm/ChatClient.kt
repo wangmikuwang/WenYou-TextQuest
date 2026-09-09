@@ -297,7 +297,7 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
             ProviderKind.OPENAI_COMPAT -> {
                 val choice = root["choices"]?.jsonArray?.firstOrNull()?.jsonObject ?: return null
                 val delta = choice["delta"]?.jsonObject
-                val reason = delta?.get("reasoning_content")
+                val reason = delta?.get("reasoning_content") ?: delta?.get("reasoning")
                 val content = delta?.get("content") ?: choice["message"]?.jsonObject?.get("content")
                 when {
                     reason != null && reason !is JsonNull -> Delta(true, primText(reason))
@@ -334,7 +334,7 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
         return when (kind) {
             ProviderKind.OPENAI_COMPAT -> {
                 val msg = root["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("message")?.jsonObject
-                val reason = msg?.get("reasoning_content")
+                val reason = msg?.get("reasoning_content") ?: msg?.get("reasoning")
                 val content = msg?.get("content")
                 when {
                     reason != null && reason !is JsonNull -> Delta(true, primText(reason))
