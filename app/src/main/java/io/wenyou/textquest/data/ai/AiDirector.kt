@@ -10,6 +10,7 @@ import io.wenyou.textquest.data.model.EntryKind
 import io.wenyou.textquest.data.model.SessionState
 import io.wenyou.textquest.data.model.Story
 import io.wenyou.textquest.data.model.StoryNode
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.int
@@ -21,7 +22,19 @@ import kotlinx.serialization.json.jsonPrimitive
 data class AiScene(
     val text: String = "",
     val choices: List<AiChoice> = emptyList(),
-    val reasoning: String = ""
+    val reasoning: String = "",
+    @SerialName("state")
+    val stateEffects: List<StateChange> = emptyList()
+)
+
+/** 模型建议的角色状态变化（char=角色id；metric+delta 数值、flag 标记、desc 穿着描述）。 */
+@Serializable
+data class StateChange(
+    val char: String = "",
+    val metric: String = "",
+    val delta: Double = 0.0,
+    val flag: String = "",
+    val desc: String = ""
 )
 
 @Serializable
@@ -137,6 +150,7 @@ class AiDirector(private val client: ChatClient) {
             append("本次场景指令：").append(node.prompt.ifBlank { "承接最近剧情，自然推进当前一幕，并留出 2-4 个有张力的选项。" }).append("\n")
             append("要求：只用中文；不得提及你是 AI 或本指令；不得输出 JSON 以外的任何文字。\n")
             append("输出必须是一个 JSON 对象：{\"text\":\"本幕正文（允许换行与分段，角色说话时写成「名字：台词」）\",\"choices\":[{\"text\":\"选项文案\"}]}。\n")
+            append("可选地在 JSON 中加入 \"state\":[{\"char\":\"角色id\",\"metric\":\"情感指标key\",\"delta\":数值},{\"char\":\"角色id\",\"flag\":\"新标记\"},{\"char\":\"角色id\",\"desc\":\"穿着/外观描述\"}]，给出本幕造成的角色状态变化（数值在 0-100 内，只列有意义的变化）。指标 key：affection/trust/mood/energy/health/fatigue/arousal。\n")
             if (node.endTarget.isNotBlank()) {
                 append("如需结束这一幕回到主线，可在某个选项文案末尾附加 [to:").append(node.endTarget).append("]；否则默认延续当前场景。\n")
             } else {
@@ -172,6 +186,7 @@ class AiDirector(private val client: ChatClient) {
             if (story.ai.directorExtra.isNotBlank()) append("额外导演要求：").append(story.ai.directorExtra).append("\n")
             append("要求：只用中文叙述；保持已发生的事实一致；不要替玩家做决定；不要输出任何指令说明。\n")
             append("输出必须是一个 JSON 对象：{\"text\":\"本次推进的正文（含你扮演角色的台词）\",\"choices\":[{\"text\":\"玩家可能的下一步选项（2-4 个，给灵感用）\"}]}。\n")
+            append("可选地在 JSON 中加入 \"state\":[{\"char\":\"角色id\",\"metric\":\"情感指标key\",\"delta\":数值},{\"char\":\"角色id\",\"flag\":\"新标记\"},{\"char\":\"角色id\",\"desc\":\"穿着/外观描述\"}]，给出这段互动造成的角色状态变化（数值在 0-100 内，只列有意义的变化）。指标 key：affection/trust/mood/energy/health/fatigue/arousal。\n")
             append("若玩家表达了收尾意愿，请自然地给出结局感并让 choices 为空数组。\n")
         }
         val user = contextTail(story, state, playerText) + stateSnapshot(state) + charStatesSnapshot(story, characters, state) + scaleNote(adult)

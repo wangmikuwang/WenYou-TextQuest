@@ -5,9 +5,12 @@ import androidx.lifecycle.viewModelScope
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.data.ai.AiChoice
 import io.wenyou.textquest.data.ai.AiDirector
+import io.wenyou.textquest.data.ai.StateChange
 import io.wenyou.textquest.data.engine.GameEngine
 import io.wenyou.textquest.data.model.ApiProfile
 import io.wenyou.textquest.data.model.CharacterData
+import io.wenyou.textquest.data.model.CharacterMetrics
+import io.wenyou.textquest.data.model.CharacterState
 import io.wenyou.textquest.data.model.ChoiceData
 import io.wenyou.textquest.data.model.EntryKind
 import io.wenyou.textquest.data.model.LogEntry
@@ -284,7 +287,7 @@ class PlayViewModel(
                     onReasoning = { r -> _ui.update { it.copy(aiReasoningDelta = it.aiReasoningDelta + r) } },
                     onDelta = { delta -> _ui.update { it.copy(aiDelta = it.aiDelta + delta) } })
                 if (job.isActive && aiJob === job) {
-                    finishAiScene(scene.text, scene.choices, scene.reasoning)
+                    finishAiScene(scene.text, scene.choices, scene.reasoning, scene.stateEffects)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -308,10 +311,47 @@ class PlayViewModel(
         aiJob = job
     }
 
-    private fun finishAiScene(text: String, choices: List<AiChoice>, reasoning: String = "") {
+    /** 应用 AI 建议的角色状态变化，并打印「✨ 状态变化」日志。 */
+    private fun applyStateChanges(changes: List<StateChange>) {
+        if (changes.isEmpty()) return
+        val s = session ?: return
+        val ui = _ui.value
+        var charStates = s.characterStates
+        val parts = mutableListOf<String>()
+        for (c in changes) {
+            val char = ui.characters.firstOrNull { it.id == c.char } ?: continue
+            val st = charStates[c.char] ?: CharacterState()
+            var metrics = st.metrics
+            var flags = st.flags
+            var desc = st.description
+            if (c.metric.isNotBlank() && c.delta != 0.0) {
+                val ov = metrics[c.metric] ?: 0.0
+                val nv = CharacterMetrics.clamp(ov + c.delta)
+                if (nv != ov) {
+                    metrics = metrics + (c.metric to nv)
+                    val sign = if (c.delta > 0) "+" else ""
+                    parts += "${CharacterMetrics.icon(c.metric)}${char.name} ${CharacterMetrics.label(c.metric)}$sign${GameEngine.formatNumber(c.delta)}"
+                }
+            }
+            if (c.flag.isNotBlank()) flags = flags + c.flag
+            if (c.desc.isNotBlank()) desc = c.desc
+            if (metrics != st.metrics || flags != st.flags || desc != st.description) {
+                charStates = charStates + (c.char to st.copy(metrics = metrics, flags = flags, description = desc))
+            }
+        }
+        if (parts.isNotEmpty() || charStates != s.characterStates) {
+            session = s.copy(characterStates = charStates, updatedAt = System.currentTimeMillis())
+            if (parts.isNotEmpty()) {
+                appendEntries(listOf(LogEntry(EntryKind.SYSTEM, speaker = "系统", text = "✨ 状态变化：${parts.joinToString("　")}")))
+            }
+        }
+    }
+
+    private fun finishAiScene(text: String, choices: List<AiChoice>, reasoning: String = "", stateEffects: List<StateChange> = emptyList()) {
         val ui = _ui.value
         val story = ui.story ?: return
         val node = story.nodes[ui.nodeId]
+        applyStateChanges(stateEffects)
         if (text.isNotBlank()) {
             if (node?.speakerId?.isNotBlank() == true) {
                 val speaker = ui.characters.firstOrNull { it.id == node.speakerId }?.name ?: "角色"
@@ -373,6 +413,7 @@ class PlayViewModel(
                 if (job.isActive && aiJob === job) {
                     if (scene.text.isNotBlank()) {
                         appendEntries(listOf(LogEntry(EntryKind.DM, speaker = "AI 导演", text = scene.text, reasoning = scene.reasoning)))
+                        applyStateChanges(scene.stateEffects)
                     }
                     _ui.update { it.copy(aiDelta = "", aiReasoningDelta = "", stage = PlayStage.DM_INPUT, pendingAiChoices = scene.choices) }
                 }
