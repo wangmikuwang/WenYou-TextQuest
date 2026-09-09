@@ -8,6 +8,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,14 +27,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,6 +59,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -64,6 +71,7 @@ import io.wenyou.textquest.data.model.ContentClass
 import io.wenyou.textquest.data.model.NodeKind
 import io.wenyou.textquest.data.model.SaveSlot
 import io.wenyou.textquest.data.model.Story
+import io.wenyou.textquest.data.model.StoryMode
 import io.wenyou.textquest.data.model.storyContentClass
 import io.wenyou.textquest.ui.HubScaffold
 import io.wenyou.textquest.ui.R
@@ -399,50 +407,64 @@ private fun SavesDialog(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 private fun StoryCard(story: Story, onEdit: () -> Unit, onPlay: () -> Unit, onSaves: () -> Unit, onShare: () -> Unit, onDelete: () -> Unit) {
     val color = avatarColor(story.colorIndex)
     val aiNodes = story.nodes.values.count { it.kind == NodeKind.AI }
+    var menuOpen by remember { mutableStateOf(false) }
+    val modeText = if (story.mode == StoryMode.AI_DIRECTOR) "AI 导演" else "分支剧本"
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
     ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            EmojiBadge(story.coverEmoji, color, size = 56.dp)
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f).clickable(onClick = onEdit)) {
-                Text(story.title, style = MaterialTheme.typography.titleLarge)
-                if (story.subtitle.isNotBlank())
-                    Text(story.subtitle, style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                Spacer(Modifier.padding(top = 6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Pill(story.mode.label)
-                    // β 版不含 lgbt 元素：不渲染 LGBT 内容分类标记
-                    val cls = storyContentClass(story)
-                    if (!(BuildConfig.BARE_CONTENT && cls == ContentClass.LGBT)) {
-                        Pill(cls.label,
-                            container = if (story.adult) MaterialTheme.colorScheme.tertiaryContainer
-                            else MaterialTheme.colorScheme.secondaryContainer)
+        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                EmojiBadge(story.coverEmoji, color, size = 54.dp)
+                Spacer(Modifier.width(12.dp))
+                Column(
+                    Modifier.weight(1f).padding(top = 2.dp).clickable(onClick = onEdit)
+                ) {
+                    Text(story.title, style = MaterialTheme.typography.titleLarge, maxLines = 2,
+                        overflow = TextOverflow.Ellipsis)
+                    if (story.subtitle.isNotBlank())
+                        Text(story.subtitle, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                            overflow = TextOverflow.Ellipsis)
+                }
+                Spacer(Modifier.width(8.dp))
+                FilledIconButton(onClick = onPlay,
+                    modifier = Modifier.align(Alignment.CenterVertically)) {
+                    Icon(Icons.Filled.PlayArrow, "游玩")
+                }
+                Box {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Filled.MoreVert, "更多", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    Pill("${story.nodes.size} 节点")
-                    if (aiNodes > 0) Pill("AI×$aiNodes", container = MaterialTheme.colorScheme.tertiaryContainer)
-                    if (story.characterIds.isNotEmpty())
-                        Pill("角色 ${story.characterIds.size}", container = MaterialTheme.colorScheme.secondaryContainer)
+                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(text = { Text("读取存档") }, onClick = { menuOpen = false; onSaves() })
+                        DropdownMenuItem(text = { Text("生成分享码") }, onClick = { menuOpen = false; onShare() })
+                        DropdownMenuItem(text = { Text("删除", color = MaterialTheme.colorScheme.error) },
+                            onClick = { menuOpen = false; onDelete() })
+                    }
                 }
             }
-            IconButton(onClick = onPlay) {
-                Icon(Icons.Filled.PlayArrow, "游玩", tint = MaterialTheme.colorScheme.primary)
-            }
-            IconButton(onClick = onSaves) {
-                Icon(Icons.Filled.Check, "读取存档", tint = MaterialTheme.colorScheme.primary)
-            }
-            IconButton(onClick = onShare) {
-                Icon(Icons.Filled.Share, "生成分享码", tint = MaterialTheme.colorScheme.primary)
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Filled.Delete, "删除", tint = MaterialTheme.colorScheme.outline)
+            Spacer(Modifier.height(10.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Pill(modeText)
+                val cls = storyContentClass(story)
+                if (!(BuildConfig.BARE_CONTENT && cls == ContentClass.LGBT)) {
+                    Pill(cls.label,
+                        container = if (story.adult) MaterialTheme.colorScheme.tertiaryContainer
+                        else MaterialTheme.colorScheme.secondaryContainer)
+                }
+                Pill("${story.nodes.size} 节点")
+                if (aiNodes > 0) Pill("AI×$aiNodes", container = MaterialTheme.colorScheme.tertiaryContainer)
+                if (story.characterIds.isNotEmpty())
+                    Pill("角色 ${story.characterIds.size}", container = MaterialTheme.colorScheme.secondaryContainer)
             }
         }
     }
