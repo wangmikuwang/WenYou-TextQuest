@@ -201,5 +201,10 @@ class WenYouApp : Application() {
                 container.library.upsertStory(ss)
             }
         }
+        // 预设自带的底层基调一并并入（按 id 去重、只补不覆盖）
+        val ruleIds = container.library.bottomRules.value.mapTo(mutableSetOf()) { it.id }
+        for (r in bundle.bottomRules) {
+            if (ruleIds.add(r.id)) container.library.upsertBottomRule(r)
+        }
     }
 }

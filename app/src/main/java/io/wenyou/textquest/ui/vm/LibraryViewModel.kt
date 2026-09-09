@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.data.model.AppBundle
+import io.wenyou.textquest.data.model.BottomRule
+import io.wenyou.textquest.data.model.CharacterData
 import io.wenyou.textquest.data.model.SaveSlot
 import io.wenyou.textquest.data.model.SexualOrientation
 import io.wenyou.textquest.data.model.Story
@@ -146,20 +148,30 @@ class LibraryViewModel(container: WenYouApp.AppContainer) : ViewModel() {
     fun deleteCharacter(id: String) = viewModelScope.launch { library.deleteCharacter(id) }
     fun deleteProvider(id: String) = viewModelScope.launch { library.deleteProvider(id) }
 
-    /** 生成一部剧情的分享码（含其引用的角色；剧情不存在返回空串）。
+    /** 生成一部剧情的分享码（含其引用的角色及其用到的底层基调；剧情不存在返回空串）。
      *
-     *  注意：仅打包「当前仍存在」且被剧情引用的角色。若某角色 id 已被删除但仍被
-     *  剧情引用，则跳过该 id（而非打包一个不存在角色），避免对方导入后出现空角色。 */
+     *  注意：仅打包「当前仍存在」且被剧情引用的角色，以及这些角色引用到的底层基调，
+     *  避免对方导入后出现空角色或悬空的底层基调 id。 */
     fun shareCodeFor(storyId: String): String {
         val story = _stories.value.firstOrNull { it.id == storyId } ?: return ""
         val chars = _characters.value.filter { it.id in story.characterIds }
-        return ShareCode.encode(AppBundle(characters = chars, stories = listOf(story)))
+        val rules = _rulesFor(chars)
+        return ShareCode.encode(AppBundle(characters = chars, stories = listOf(story), bottomRules = rules))
     }
 
-    /** 生成单个角色的分享码（角色不存在返回空串）。 */
+    /** 生成单个角色的分享码（角色不存在返回空串；附带其用到的底层基调）。 */
     fun shareCodeForCharacter(characterId: String): String {
         val c = _characters.value.firstOrNull { it.id == characterId } ?: return ""
-        return ShareCode.encode(AppBundle(characters = listOf(c)))
+        val rules = _rulesFor(listOf(c))
+        return ShareCode.encode(AppBundle(characters = listOf(c), bottomRules = rules))
+    }
+
+    /** 取若干角色引用到的、且当前存在的底层基调（按 id 去重）。 */
+    private fun _rulesFor(chars: List<CharacterData>): List<BottomRule> {
+        val ruleIds = chars.flatMap { it.bottomRuleIds }.toSet()
+        if (ruleIds.isEmpty()) return emptyList()
+        val byId = library.bottomRules.value.associateBy { it.id }
+        return ruleIds.mapNotNull { byId[it] }
     }
 
     /** 从分享码导入：只补不覆盖，结果通过 onResult 回调（主线程执行）。 */

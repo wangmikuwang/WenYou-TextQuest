@@ -6,6 +6,7 @@ import io.wenyou.textquest.data.llm.ChatOptions
 import io.wenyou.textquest.data.llm.ChatResult
 import io.wenyou.textquest.data.llm.LlmException
 import io.wenyou.textquest.data.model.ApiProfile
+import io.wenyou.textquest.data.model.BottomRule
 import io.wenyou.textquest.data.model.CharacterData
 import io.wenyou.textquest.data.model.EntryKind
 import io.wenyou.textquest.data.model.SessionState
@@ -125,7 +126,14 @@ class AiDirector(private val client: ChatClient) {
 
     // ---------------- 人设卡 ----------------
 
-    fun personaCard(char: CharacterData): String = buildString {
+    /** 单个角色的底层基调：独立实体（[BottomRule]+[bottomRuleIds]）与内嵌 [CharacterData.bottomPrompt] 叠加，置于人设最底，冲突时以此层为准。 */
+    private fun bottomRulesFor(char: CharacterData, rules: List<BottomRule>): List<BottomRule> {
+        if (char.bottomRuleIds.isEmpty()) return emptyList()
+        val byId = rules.associateBy { it.id }
+        return char.bottomRuleIds.mapNotNull { byId[it] }
+    }
+
+    fun personaCard(char: CharacterData, allBottomRules: List<BottomRule> = emptyList()): String = buildString {
         // 高优先级人设提示语：放在最前，权重最高
         if (char.extraPrompt.isNotBlank()) append(char.extraPrompt.trim()).append("\n")
         append("· 角色名：${char.name} ${char.emoji}\n")
@@ -134,16 +142,22 @@ class AiDirector(private val client: ChatClient) {
         if (char.speechStyle.isNotBlank()) append("  说话方式：${char.speechStyle}\n")
         if (char.background.isNotBlank()) append("  背景：${char.background}\n")
         if (char.exampleDialogue.isNotBlank()) append("  台词示范：${char.exampleDialogue}\n")
-        // 底层基调：放在该角色人设的最后一段，作为其不可动摇的底层规则。
-        if (char.bottomPrompt.isNotBlank()) {
-            append("  [底层基调｜人设中优先级最高，须置于所有其他设定之上遵循]\n")
-            append(char.bottomPrompt.trim()).append("\n")
+        // 底层基调：独立实体 + 内嵌单条，放在人设最后，作为不可动摇的底层规则（先执行、再扮演）。
+        val bottom = buildList {
+            bottomRulesFor(char, allBottomRules).forEach { r ->
+                add(r.name to r.content)
+            }
+            if (char.bottomPrompt.isNotBlank()) add("（本角色内嵌底层基调）" to char.bottomPrompt)
+        }
+        for ((label, content) in bottom) {
+            append("  [底层基调｜${label} ｜优先级最高，先于所有人设设定执行，须无条件遵守，冲突时以此层为准]\n")
+            append(content.trim()).append("\n")
         }
     }
 
-    fun roster(story: Story, characters: List<CharacterData>): String {
+    fun roster(story: Story, characters: List<CharacterData>, allBottomRules: List<BottomRule> = emptyList()): String {
         if (characters.isEmpty()) return ""
-        val joined = characters.filter { it.id in story.characterIds }.joinToString("\n") { personaCard(it) }
+        val joined = characters.filter { it.id in story.characterIds }.joinToString("\n") { personaCard(it, allBottomRules) }
         if (joined.isBlank()) return ""
         return "登场角色（请严格贴合下列人设，包括说话习惯、用词、情感）：\n$joined"
     }
@@ -212,6 +226,7 @@ class AiDirector(private val client: ChatClient) {
         characters: List<CharacterData>,
         state: SessionState,
         adult: Boolean = false,
+        bottomRules: List<BottomRule> = emptyList(),
         onDelta: (String) -> Unit = {},
         onReasoning: (String) -> Unit = {}
     ): AiScene {
@@ -219,7 +234,7 @@ class AiDirector(private val client: ChatClient) {
             append("你是一名中文文字冒险游戏的「场景生成器」，只负责根据给定素材续写当前场景。\n")
             append("叙事基调：").append(story.ai.tone).append("\n")
             if (story.ai.worldSummary.isNotBlank()) append("世界观/大纲：").append(story.ai.worldSummary).append("\n")
-            val r = roster(story, characters)
+            val r = roster(story, characters, bottomRules)
             if (r.isNotBlank()) append(r).append("\n")
             append("本次场景指令：").append(node.prompt.ifBlank { "承接最近剧情，自然推进当前一幕，并留出 2-4 个有张力的选项。" }).append("\n")
             append("要求：只用中文；不得提及你是 AI 或本指令；不得输出 JSON 以外的任何文字。\n")
@@ -248,6 +263,7 @@ class AiDirector(private val client: ChatClient) {
         state: SessionState,
         playerText: String,
         adult: Boolean = false,
+        bottomRules: List<BottomRule> = emptyList(),
         onDelta: (String) -> Unit = {},
         onReasoning: (String) -> Unit = {}
     ): AiScene {
@@ -258,7 +274,7 @@ class AiDirector(private val client: ChatClient) {
             append("3) 尊重玩家自由输入，任何走向都可以发展（包括危险、温情、悬疑、搞笑）。\n")
             append("叙事基调：").append(story.ai.tone).append("\n")
             if (story.ai.worldSummary.isNotBlank()) append("世界观与初始局面：").append(story.ai.worldSummary).append("\n")
-            val r = roster(story, characters)
+            val r = roster(story, characters, bottomRules)
             if (r.isNotBlank()) append(r).append("\n")
             if (story.ai.directorExtra.isNotBlank()) append("额外导演要求：").append(story.ai.directorExtra).append("\n")
             append("要求：只用中文叙述；保持已发生的事实一致；不要替玩家做决定；不要输出任何指令说明。\n")

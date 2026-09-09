@@ -61,8 +61,10 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
         val full = StringBuilder()
         val reasoningFull = StringBuilder()
         val call = buildCall(profile, system, user, options)
+        // 推理模型（如 deepseek-reasoner）思考耗时更长，放宽超时
+        val timeoutMs = if (profile.model.contains("reasoner", ignoreCase = true)) 150_000L else 90_000L
         try {
-            withTimeout(90_000) {
+            withTimeout(timeoutMs) {
                 suspendCancellableCoroutine<ChatResult> { cont ->
                     cont.invokeOnCancellation { call.cancel() }
                     call.enqueue(object : Callback {
@@ -124,7 +126,8 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
                 }
             }
         } catch (e: TimeoutCancellationException) {
-            throw LlmException("AI 响应超时（90 秒未返回内容）。请检查模型配置、Key 与网络，或切换模型重试。")
+            val secs = timeoutMs / 1000
+            throw LlmException("AI 响应超时（${secs} 秒未返回内容）。请检查模型配置、Key 与网络，或切换模型重试。")
         } finally {
             full.toString()
             reasoningFull.toString()
@@ -212,11 +215,14 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
 
     private fun openAiCall(profile: ApiProfile, base: String, system: String, user: String, options: ChatOptions): Call {
         val url = (if (base.endsWith("/chat/completions")) base else "$base/chat/completions")
+        // deepseek-reasoner 为推理模型：temperature 固定不可调（传了通常被忽略），
+        // 思考需要更充裕的 max_tokens，且更慢；这里归一化处理以贴合 DeepSeek 行为。
+        val isReasoner = profile.model.contains("reasoner", ignoreCase = true)
         val body = buildJsonObject {
             put("model", profile.model)
             put("stream", true)
-            put("temperature", options.temperature)
-            put("max_tokens", options.maxTokens)
+            if (!isReasoner) put("temperature", options.temperature)
+            put("max_tokens", if (isReasoner) maxOf(options.maxTokens, 2048) else options.maxTokens)
             putJsonArray("messages") {
                 if (system.isNotBlank()) addJsonObject {
                     put("role", "system"); put("content", system)

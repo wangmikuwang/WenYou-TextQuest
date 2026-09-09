@@ -43,6 +43,7 @@ import io.wenyou.textquest.BuildConfig
 import io.wenyou.textquest.CrashLog
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.ui.HubScaffold
+import io.wenyou.textquest.ui.R
 import io.wenyou.textquest.ui.common.AppDropdown
 import io.wenyou.textquest.ui.common.SectionHeader
 import io.wenyou.textquest.ui.common.TonalCard
@@ -252,6 +253,21 @@ fun SettingsScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
                         OutlinedButton(onClick = {
                             importLauncher.launch(arrayOf("application/json", "text/plain", "*/*"))
                         }) { Text("导入备份") }
+                    }
+                }
+            }
+
+            item {
+                TonalCard {
+                    Text("底层基调（不可动摇规则）", style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.height(6.dp))
+                    Text("角色扮演时先执行底层基调，再按人物设定扮演；冲突时以此层为准。可新建多条，并在角色编辑里选择要执行的角色。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Button(onClick = { nav.navigate(R.bottomRuleEdit("new")) }) { Text("新建底层基调") }
+                        OutlinedButton(onClick = { nav.navigate(R.BOTTOM_RULES) }) { Text("管理底层基调") }
                     }
                 }
             }

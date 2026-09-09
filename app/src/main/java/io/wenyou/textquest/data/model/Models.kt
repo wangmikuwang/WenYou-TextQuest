@@ -70,9 +70,20 @@ fun storyContentClass(story: Story): ContentClass = when {
 }
 
 /**
- * 角色卡：性格/说话方式/背景会注入到 AI 人设与叙事系统提示中，
- * 在作者自编节点中则由 [speakerId] 决定气泡归属（纯离线也能用）。
+ * 底层基调（不可动摇规则）：独立、可复用的规则实体。
+ * 一个底层基调可被多个角色选择执行；角色扮演时先执行它，再按人设扮演，冲突时以此层为准。
  */
+@Serializable
+data class BottomRule(
+    val id: String,
+    val name: String,
+    val content: String,
+    val createdAt: Long = 0L,
+    val updatedAt: Long = 0L
+)
+
+/** 角色卡：性格/说话方式/背景会注入到 AI 人设与叙事系统提示中，
+ * 在作者自编节点中则由 [speakerId] 决定气泡归属（纯离线也能用）。 */
 @Serializable
 data class CharacterData(
     val id: String,
@@ -89,6 +100,8 @@ data class CharacterData(
     val extraPrompt: String = "",
     /** 底层基调提示语：拼接系统提示时位于该角色人设最底，用于放“不可动摇”的底层规则；留空则不注入。 */
     val bottomPrompt: String = "",
+    /** 该角色要执行的「底层基调」实体 id 列表（与 [bottomPrompt] 叠加注入，均置于人设最底）。 */
+    val bottomRuleIds: List<String> = emptyList(),
     /** 初始状态（开局新会话沿用；可在角色编辑器调整，对局中由 AI 导演实时更新）。 */
     val initial: CharacterState = CharacterState(),
     /** 性取向（角色库分类用）。 */
@@ -289,7 +302,8 @@ data class AppBundle(
     val providers: List<ApiProfile> = emptyList(),
     val characters: List<CharacterData> = emptyList(),
     val stories: List<Story> = emptyList(),
-    val saves: List<SaveSlot> = emptyList()
+    val saves: List<SaveSlot> = emptyList(),
+    val bottomRules: List<BottomRule> = emptyList()
 )
 
 /** 把任意 JSON 安全解析为 [JsonElement] 的辅助（用于导入校验）。 */

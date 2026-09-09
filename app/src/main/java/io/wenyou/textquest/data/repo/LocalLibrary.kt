@@ -4,6 +4,7 @@ import android.content.Context
 import io.wenyou.textquest.data.model.ApiProfile
 import io.wenyou.textquest.data.model.AppBundle
 import io.wenyou.textquest.data.model.AppJson
+import io.wenyou.textquest.data.model.BottomRule
 import io.wenyou.textquest.data.model.CharacterData
 import io.wenyou.textquest.data.model.SaveSlot
 import io.wenyou.textquest.data.model.Story
@@ -28,16 +29,19 @@ class LocalLibrary(context: Context) {
     private val charactersFile = File(dir, "characters.json")
     private val storiesFile = File(dir, "stories.json")
     private val savesFile = File(dir, "saves.json")
+    private val bottomRulesFile = File(dir, "bottom_rules.json")
 
     private val _providers = MutableStateFlow(readList(providersFile, ApiProfile.serializer()))
     private val _characters = MutableStateFlow(readList(charactersFile, CharacterData.serializer()))
     private val _stories = MutableStateFlow(readList(storiesFile, Story.serializer()))
     private val _saves = MutableStateFlow(readList(savesFile, SaveSlot.serializer()))
+    private val _bottomRules = MutableStateFlow(readList(bottomRulesFile, BottomRule.serializer()))
 
     val providers: StateFlow<List<ApiProfile>> = _providers.asStateFlow()
     val characters: StateFlow<List<CharacterData>> = _characters.asStateFlow()
     val stories: StateFlow<List<Story>> = _stories.asStateFlow()
     val saves: StateFlow<List<SaveSlot>> = _saves.asStateFlow()
+    val bottomRules: StateFlow<List<BottomRule>> = _bottomRules.asStateFlow()
 
     // ---------------- CRUD ----------------
 
@@ -90,6 +94,24 @@ class LocalLibrary(context: Context) {
         }
     }
 
+    suspend fun upsertBottomRule(r: BottomRule) = withContext(Dispatchers.IO) {
+        _bottomRules.value = replaceById(_bottomRules.value, r.id, r).also {
+            persistList(bottomRulesFile, it, BottomRule.serializer())
+        }
+    }
+
+    suspend fun deleteBottomRule(id: String) = withContext(Dispatchers.IO) {
+        _bottomRules.value = _bottomRules.value.filterNot { it.id == id }.also {
+            persistList(bottomRulesFile, it, BottomRule.serializer())
+        }
+        // 同时从所有角色上摘除对该规则的引用，避免留下悬空 id
+        if (_characters.value.any { r -> id in r.bottomRuleIds }) {
+            _characters.value = _characters.value.map { c ->
+                if (id in c.bottomRuleIds) c.copy(bottomRuleIds = c.bottomRuleIds - id) else c
+            }.also { persistList(charactersFile, it, CharacterData.serializer()) }
+        }
+    }
+
     // ---------------- 批量/导入导出 ----------------
 
     fun bundle(): AppBundle = AppBundle(
@@ -97,7 +119,8 @@ class LocalLibrary(context: Context) {
         providers = _providers.value,
         characters = _characters.value,
         stories = _stories.value,
-        saves = _saves.value
+        saves = _saves.value,
+        bottomRules = _bottomRules.value
     )
 
     suspend fun importBundle(bundle: AppBundle): Int = withContext(Dispatchers.IO) {
@@ -105,11 +128,13 @@ class LocalLibrary(context: Context) {
         _characters.value = bundle.characters
         _stories.value = bundle.stories
         _saves.value = bundle.saves
+        _bottomRules.value = bundle.bottomRules
         persistList(providersFile, bundle.providers, ApiProfile.serializer())
         persistList(charactersFile, bundle.characters, CharacterData.serializer())
         persistList(storiesFile, bundle.stories, Story.serializer())
         persistList(savesFile, bundle.saves, SaveSlot.serializer())
-        bundle.providers.size + bundle.characters.size + bundle.stories.size + bundle.saves.size
+        persistList(bottomRulesFile, bundle.bottomRules, BottomRule.serializer())
+        bundle.providers.size + bundle.characters.size + bundle.stories.size + bundle.saves.size + bundle.bottomRules.size
     }
 
     /** 分享码导入：仅按 id 补入缺失的剧情与角色，不覆盖同名、不触碰用户已有数据。 */
@@ -118,15 +143,20 @@ class LocalLibrary(context: Context) {
         val newChars = bundle.characters.filter { charIds.add(it.id) }
         val storyIds = _stories.value.mapTo(mutableSetOf()) { it.id }
         val newStories = bundle.stories.filter { storyIds.add(it.id) }
-        if (newChars.isNotEmpty() || newStories.isNotEmpty()) {
+        val ruleIds = _bottomRules.value.mapTo(mutableSetOf()) { it.id }
+        val newRules = bundle.bottomRules.filter { ruleIds.add(it.id) }
+        if (newChars.isNotEmpty() || newStories.isNotEmpty() || newRules.isNotEmpty()) {
             val chars = _characters.value + newChars
             val stories = _stories.value + newStories
+            val rules = _bottomRules.value + newRules
             _characters.value = chars
             _stories.value = stories
+            _bottomRules.value = rules
             persistList(charactersFile, chars, CharacterData.serializer())
             persistList(storiesFile, stories, Story.serializer())
+            persistList(bottomRulesFile, rules, BottomRule.serializer())
         }
-        newChars.size + newStories.size
+        newChars.size + newStories.size + newRules.size
     }
 
     // ---------------- 内部工具 ----------------
@@ -139,6 +169,7 @@ class LocalLibrary(context: Context) {
                 is CharacterData -> it.id == id
                 is Story -> it.id == id
                 is SaveSlot -> it.id == id
+                is BottomRule -> it.id == id
                 else -> false
             }
         }

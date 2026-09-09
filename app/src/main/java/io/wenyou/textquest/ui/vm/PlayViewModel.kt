@@ -284,6 +284,7 @@ class PlayViewModel(
             try {
                 val scene = director.generateScene(profile, story, node, ui.characters, s,
                     adult = story.adult,
+                    bottomRules = library.bottomRules.value,
                     onReasoning = { r -> _ui.update { it.copy(aiReasoningDelta = it.aiReasoningDelta + r) } },
                     onDelta = { delta -> _ui.update { it.copy(aiDelta = it.aiDelta + delta) } })
                 if (job.isActive && aiJob === job) {
@@ -408,6 +409,7 @@ class PlayViewModel(
             try {
                 val scene = director.directorTurn(profile, story, ui.characters, s, trimmed,
                     adult = story.adult,
+                    bottomRules = library.bottomRules.value,
                     onReasoning = { r -> _ui.update { it.copy(aiReasoningDelta = it.aiReasoningDelta + r) } },
                     onDelta = { delta -> _ui.update { it.copy(aiDelta = it.aiDelta + delta) } })
                 if (job.isActive && aiJob === job) {

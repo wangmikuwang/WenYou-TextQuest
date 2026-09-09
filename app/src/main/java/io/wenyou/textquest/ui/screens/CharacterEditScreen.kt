@@ -2,6 +2,8 @@ package io.wenyou.textquest.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,6 +19,7 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,7 +49,7 @@ import io.wenyou.textquest.ui.theme.avatarColor
 import io.wenyou.textquest.ui.vm.CharacterEditorViewModel
 import io.wenyou.textquest.ui.vm.Vms
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun CharacterEditScreen(container: WenYouApp.AppContainer, nav: NavHostController, charId: String) {
     val vm: CharacterEditorViewModel = viewModel(
@@ -137,9 +140,37 @@ fun CharacterEditScreen(container: WenYouApp.AppContainer, nav: NavHostControlle
                         supporting = "用于强化人设与世界观；拼接系统提示时位于最高优先级。")
                     Spacer(Modifier.padding(top = 8.dp))
                     AppField(value = char.bottomPrompt, onValueChange = { vm.setBottomPrompt(it) },
-                        label = "底层基调 / 不可动摇规则", minLines = 5,
+                        label = "底层基调 / 不可动摇规则（内嵌单条）", minLines = 5,
                         placeholder = "写本角色必须无条件遵守的底层规则……会拼接到该角色人设的最底部。",
                         supporting = "置于该角色人设最底，冲突时以此层为准；留空则不注入。")
+                    if (ui.availableRules.isNotEmpty()) {
+                        Spacer(Modifier.padding(top = 12.dp))
+                        Text("选择要执行的底层基调（可多选，各角色可不同）",
+                            style = MaterialTheme.typography.labelLarge)
+                        Spacer(Modifier.padding(top = 6.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            ui.availableRules.forEach { r ->
+                                val selected = r.id in char.bottomRuleIds
+                                FilterChip(
+                                    selected = selected,
+                                    onClick = {
+                                        val next = if (selected) char.bottomRuleIds - r.id else char.bottomRuleIds + r.id
+                                        vm.setBottomRuleIds(next)
+                                    },
+                                    label = { Text(r.name) }
+                                )
+                            }
+                        }
+                        Spacer(Modifier.padding(top = 4.dp))
+                        Text(
+                            "在「设置 → 底层基调」里可新建更多规则。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     Spacer(Modifier.padding(top = 8.dp))
                     // 性取向选择仅在文游α提供（β 版不含 lgbt 元素）
                     if (BuildConfig.BUILTIN_CONTENT) {
