@@ -3,6 +3,8 @@
 
     <!-- 多品牌 LLM API 调用（自定义 baseUrl 可能是 http 明文，如本地 Ollama） -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 相机扫码识别二维码 -->
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <application
         android:name=".WenYouApp"

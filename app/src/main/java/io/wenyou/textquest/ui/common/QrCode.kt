@@ -9,7 +9,9 @@ import android.provider.MediaStore
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.BinaryBitmap
 import com.google.zxing.DecodeHintType
+import com.google.zxing.LuminanceSource
 import com.google.zxing.MultiFormatReader
+import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeWriter
@@ -41,6 +43,26 @@ object QrCode {
             val pixels = IntArray(w * h)
             bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
             val source = RGBLuminanceSource(w, h, pixels)
+            val bmp = BinaryBitmap(HybridBinarizer(source))
+            val hints: Map<DecodeHintType, Any> = mapOf(
+                DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE),
+                DecodeHintType.CHARACTER_SET to "UTF-8",
+                DecodeHintType.TRY_HARDER to true
+            )
+            MultiFormatReader().decode(bmp, hints).text
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    /** 从相机 NV21/YUV420 的 Y 平面识别二维码（支持旋转）。 */
+    fun decodeYuv(data: ByteArray, dataWidth: Int, dataHeight: Int, rotationDegrees: Int): String? {
+        return try {
+            var source: LuminanceSource = PlanarYUVLuminanceSource(
+                data, dataWidth, dataHeight, 0, 0, dataWidth, dataHeight, false
+            )
+            val quarters = (((rotationDegrees % 360) / 90) + 4) % 4
+            repeat(quarters) { source = source.rotateCounterClockwise() }
             val bmp = BinaryBitmap(HybridBinarizer(source))
             val hints: Map<DecodeHintType, Any> = mapOf(
                 DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE),

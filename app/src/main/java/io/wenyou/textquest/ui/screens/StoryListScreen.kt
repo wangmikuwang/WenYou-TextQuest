@@ -65,8 +65,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
 import io.wenyou.textquest.BuildConfig
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.data.model.ContentClass
@@ -103,14 +101,7 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
     var importPicker by remember { mutableStateOf(false) }
     var importText by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { res ->
-        val scanned = res.contents?.trim()
-        if (!scanned.isNullOrBlank()) {
-            vm.importShareCode(scanned) { msg ->
-                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
-            }
-        }
-    }
+    var scanning by remember { mutableStateOf(false) }
     // 从相册选一张含二维码的图片识别
     val albumPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
@@ -248,16 +239,7 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
     if (importPicker) {
         ImportPickDialog(
             onText = { importText = true; importPicker = false },
-            onScan = {
-                importPicker = false
-                scanLauncher.launch(
-                    ScanOptions()
-                        .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                        .setPrompt("对准分享码二维码")
-                        .setBeepEnabled(false)
-                        .setOrientationLocked(false)
-                )
-            },
+            onScan = { importPicker = false; scanning = true },
             onAlbum = { importPicker = false; albumPicker.launch("image/*") },
             onDismiss = { importPicker = false }
         )
@@ -267,6 +249,18 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
         ImportTextDialog(
             onDismiss = { importText = false },
             onImport = { code, cb -> vm.importShareCode(code, cb) }
+        )
+    }
+
+    if (scanning) {
+        QrScannerDialog(
+            onResult = { text ->
+                scanning = false
+                vm.importShareCode(text) { msg ->
+                    android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDismiss = { scanning = false }
         )
     }
 }
