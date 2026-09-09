@@ -1,6 +1,8 @@
 package io.wenyou.textquest.ui.screens
 
 import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -45,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -52,6 +56,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import io.wenyou.textquest.BuildConfig
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.data.model.ContentClass
@@ -63,6 +69,7 @@ import io.wenyou.textquest.ui.HubScaffold
 import io.wenyou.textquest.ui.R
 import io.wenyou.textquest.ui.common.EmojiBadge
 import io.wenyou.textquest.ui.common.Pill
+import io.wenyou.textquest.ui.common.QrCode
 import io.wenyou.textquest.ui.theme.avatarColor
 import io.wenyou.textquest.ui.vm.LibraryViewModel
 import io.wenyou.textquest.ui.vm.StoryContentFilter
@@ -202,11 +209,20 @@ private fun ShareCodeDialog(story: Story, code: String, onDismiss: () -> Unit) {
         text = {
             Column {
                 Text(
-                    "把这段分享码发给朋友，对方在剧情库点右上角「导入码」即可获得本剧情及其角色。",
+                    "让对方用手机相机扫下面的二维码，或在剧情库右上角「导入码」粘贴下方文本。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(8.dp))
+                val qr = remember(code) { QrCode.encode(code, 512) }
+                if (qr != null) {
+                    Image(
+                        bitmap = qr.asImageBitmap(),
+                        contentDescription = "分享二维码",
+                        modifier = Modifier.align(Alignment.CenterHorizontally).size(220.dp)
+                    )
+                    Spacer(Modifier.height(8.dp))
+                }
                 OutlinedTextField(
                     value = code,
                     onValueChange = {},
@@ -217,7 +233,7 @@ private fun ShareCodeDialog(story: Story, code: String, onDismiss: () -> Unit) {
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    if (copied) "已复制到剪贴板" else "分享码通常较长，复制或系统分享均可。",
+                    if (copied) "已复制到剪贴板" else "分享码通常较长，复制或扫码导入均可。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -242,18 +258,34 @@ private fun ShareCodeDialog(story: Story, code: String, onDismiss: () -> Unit) {
     )
 }
 
-/** 粘贴分享码并导入（只补不覆盖）。 */
+/** 拍照/粘贴分享码并导入（只补不覆盖）。 */
 @Composable
 private fun ImportCodeDialog(onDismiss: () -> Unit, onImport: (String, (String) -> Unit) -> Unit) {
     var text by remember { mutableStateOf("") }
     var result by remember { mutableStateOf("") }
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { res ->
+        val scanned = res.contents?.trim()
+        if (!scanned.isNullOrBlank()) {
+            text = scanned
+            onImport(scanned) { result = it }
+        }
+    }
+    fun launchScan() {
+        scanLauncher.launch(
+            ScanOptions()
+                .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                .setPrompt("对准分享码二维码")
+                .setBeepEnabled(false)
+                .setOrientationLocked(false)
+        )
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("导入分享码") },
         text = {
             Column {
                 Text(
-                    "粘贴对方发来的分享码（以 WY1: 开头）。剧情节与角色会按 id 补入，不覆盖你已有的内容。",
+                    "让对方打开分享画面的二维码，用这里「扫码」即可导入；也可粘贴文本（以 WY1: 开头）。剧情节与角色按 id 补入，不覆盖已有内容。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -275,11 +307,14 @@ private fun ImportCodeDialog(onDismiss: () -> Unit, onImport: (String, (String) 
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                if (text.isNotBlank()) onImport(text) { result = it }
-            }) { Text("导入") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
+            Row {
+                TextButton(onClick = { launchScan() }) { Text("扫码") }
+                TextButton(onClick = {
+                    if (text.isNotBlank()) onImport(text) { result = it }
+                }) { Text("导入") }
+                TextButton(onClick = onDismiss) { Text("关闭") }
+            }
+        }
     )
 }
 
