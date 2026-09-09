@@ -1,6 +1,5 @@
 package io.wenyou.textquest.ui.screens
 
-import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.horizontalScroll
@@ -57,8 +56,8 @@ import io.wenyou.textquest.data.model.SexualOrientation
 import io.wenyou.textquest.ui.HubScaffold
 import io.wenyou.textquest.ui.R
 import io.wenyou.textquest.ui.common.EmojiBadge
+import io.wenyou.textquest.ui.common.GifShareReader
 import io.wenyou.textquest.ui.common.Pill
-import io.wenyou.textquest.ui.common.QrCode
 import io.wenyou.textquest.ui.common.TonalCard
 import io.wenyou.textquest.ui.theme.avatarColor
 import io.wenyou.textquest.ui.vm.LibraryViewModel
@@ -81,8 +80,7 @@ fun CharactersScreen(container: WenYouApp.AppContainer, nav: NavHostController) 
     val context = LocalContext.current
     val albumPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
-            val bmp = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-            val text = bmp?.let { QrCode.decode(it) }
+            val text = context.contentResolver.openInputStream(uri)?.use { GifShareReader.read(it) }
             if (text.isNullOrBlank()) {
                 android.widget.Toast.makeText(context, "未识别到二维码", android.widget.Toast.LENGTH_SHORT).show()
             } else {
