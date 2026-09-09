@@ -1,7 +1,6 @@
 package io.wenyou.textquest.ui.screens
 
 import android.content.Intent
-import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.RepeatMode
@@ -94,6 +93,9 @@ import io.wenyou.textquest.data.repo.ShareCode
 import io.wenyou.textquest.ui.HubScaffold
 import io.wenyou.textquest.ui.R
 import io.wenyou.textquest.ui.common.EmojiBadge
+import io.wenyou.textquest.ui.common.GifEncoder
+import io.wenyou.textquest.ui.common.GifShareReader
+import io.wenyou.textquest.ui.common.PairingFrame
 import io.wenyou.textquest.ui.common.Pill
 import io.wenyou.textquest.ui.common.QrCode
 import io.wenyou.textquest.ui.theme.avatarColor
@@ -123,8 +125,9 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
     // 从相册选一张含二维码的图片/GIF 识别
     val albumPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
-            val bmp = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-            val text = bmp?.let { QrCode.decode(it) }
+            val text = try {
+                context.contentResolver.openInputStream(uri)?.use { GifShareReader.read(it) }
+            } catch (_: Throwable) { null }
             if (text.isNullOrBlank()) {
                 android.widget.Toast.makeText(context, "未识别到二维码", android.widget.Toast.LENGTH_SHORT).show()
             } else {
@@ -420,7 +423,7 @@ fun ShareQrDialog(title: String, code: String, onDismiss: () -> Unit) {
                     var idx by remember(chunks) { mutableStateOf(0) }
                     LaunchedEffect(chunks.size) {
                         while (true) {
-                            delay(1600)
+                            delay(4000)
                             idx = (idx + 1) % chunks.size
                         }
                     }
@@ -465,15 +468,28 @@ fun ShareQrDialog(title: String, code: String, onDismiss: () -> Unit) {
                     copied = true
                 }) { Text("复制") }
                 if (isMulti) {
-                    TextButton(onClick = {
-                        var saved = 0
-                        chunks.forEachIndexed { idx, ch ->
-                            val bmp = QrCode.encode(ch, 560)
-                            val loc = bmp?.let { b -> QrCode.saveToGallery(context, b, "${title}_${idx + 1}") }
-                            if (loc != null) saved++
+                    val gif = remember(chunks) {
+                        val frames = mutableListOf<android.graphics.Bitmap>()
+                        chunks.forEach { ch ->
+                            val qr = QrCode.encode(ch, 480) ?: return@forEach
+                            for (g in 1..3) frames += PairingFrame.render(qr, g / 3f, 400)
                         }
-                        android.widget.Toast.makeText(context, "已保存 $saved/${chunks.size} 张二维码", android.widget.Toast.LENGTH_SHORT).show()
-                    }) { Text("保存全部") }
+                        GifEncoder.encode(frames, 500)
+                    }
+                    TextButton(onClick = {
+                        try {
+                            if (gif.isNotEmpty()) {
+                                val loc = QrCode.saveGifToGallery(context, gif, title)
+                                android.widget.Toast.makeText(context,
+                                    if (loc != null) "已保存动图到 $loc" else "保存失败",
+                                    android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                android.widget.Toast.makeText(context, "动图生成失败", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (t: Throwable) {
+                            android.widget.Toast.makeText(context, "动图生成失败：${t.message}", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    }) { Text("保存 GIF") }
                 } else if (single != null) {
                     TextButton(onClick = {
                         val loc = QrCode.saveToGallery(context, single, title)

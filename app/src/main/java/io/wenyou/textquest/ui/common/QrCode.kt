@@ -83,6 +83,39 @@ object QrCode {
         }
     }
 
+    /** 保存 GIF 字节到本地（相册 Pictures/WenYou 或应用图片目录），返回位置或 null。 */
+    fun saveGifToGallery(context: Context, bytes: ByteArray, title: String): String? {
+        return try {
+            val safeTitle = title.replace(Regex("[^\\w\\u4e00-\\u9fa5-]"), "_").take(40).ifBlank { "wenyou" }
+            val resolver = context.contentResolver
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val values = ContentValues().apply {
+                    put(MediaStore.Images.Media.DISPLAY_NAME, "$safeTitle.gif")
+                    put(MediaStore.Images.Media.MIME_TYPE, "image/gif")
+                    put(MediaStore.Images.Media.RELATIVE_PATH, "${Environment.DIRECTORY_PICTURES}/WenYou")
+                    put(MediaStore.Images.Media.IS_PENDING, 1)
+                }
+                val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values) ?: return null
+                val ok = resolver.openOutputStream(uri)?.use { out ->
+                    out.write(bytes); true
+                } ?: false
+                if (!ok) return null
+                values.clear()
+                values.put(MediaStore.Images.Media.IS_PENDING, 0)
+                resolver.update(uri, values, null, null)
+                "Pictures/WenYou"
+            } else {
+                val dir = context.getExternalFilesDir(Environment.DIRECTORY_PICTURES) ?: return null
+                dir.mkdirs()
+                val f = File(dir, "$safeTitle.gif")
+                f.writeBytes(bytes)
+                f.absolutePath
+            }
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
     /** 保存二维码位图到本地（相册 Pictures/WenYou 或应用图片目录），返回位置或 null。 */
     fun saveToGallery(context: Context, bitmap: Bitmap, title: String): String? {
         return try {
