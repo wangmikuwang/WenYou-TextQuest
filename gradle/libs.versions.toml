@@ -16,7 +16,6 @@ documentfile = "1.0.1"
 zxing = "3.5.3"
 camera = "1.4.2"
 mlkitBarcode = "17.3.0"
-glideGifDecoder = "4.16.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -47,7 +46,6 @@ camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.r
 camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camera" }
 camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camera" }
 mlkit-barcode = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkitBarcode" }
-glide-gifdecoder = { group = "com.github.bumptech.glide", name = "gifdecoder", version.ref = "glideGifDecoder" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

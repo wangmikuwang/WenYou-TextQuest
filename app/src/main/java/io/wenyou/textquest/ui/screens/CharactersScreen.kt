@@ -2,10 +2,13 @@ package io.wenyou.textquest.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -46,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -56,8 +60,8 @@ import io.wenyou.textquest.data.model.SexualOrientation
 import io.wenyou.textquest.ui.HubScaffold
 import io.wenyou.textquest.ui.R
 import io.wenyou.textquest.ui.common.EmojiBadge
-import io.wenyou.textquest.ui.common.GifShareReader
 import io.wenyou.textquest.ui.common.Pill
+import io.wenyou.textquest.ui.common.QrCode
 import io.wenyou.textquest.ui.common.TonalCard
 import io.wenyou.textquest.ui.theme.avatarColor
 import io.wenyou.textquest.ui.vm.LibraryViewModel
@@ -81,7 +85,12 @@ fun CharactersScreen(container: WenYouApp.AppContainer, nav: NavHostController) 
     val albumPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             val text = try {
-                context.contentResolver.openInputStream(uri)?.use { GifShareReader.read(it) }
+                context.contentResolver.openInputStream(uri)?.use { ins ->
+                    val bmp = BitmapFactory.decodeStream(ins) ?: return@use null
+                    val t = QrCode.decode(bmp)
+                    bmp.recycle()
+                    t?.trim()
+                }
             } catch (_: Throwable) { null }
             if (text.isNullOrBlank()) {
                 android.widget.Toast.makeText(context, "未识别到二维码", android.widget.Toast.LENGTH_SHORT).show()
@@ -252,6 +261,7 @@ private fun CharacterEmptyState(title: String, body: String, showReset: Boolean,
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CharacterCard(c: CharacterData, onEdit: () -> Unit, onShare: () -> Unit, onDelete: () -> Unit) {
     Card(
@@ -259,31 +269,42 @@ private fun CharacterCard(c: CharacterData, onEdit: () -> Unit, onShare: () -> U
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            EmojiBadge(c.emoji, avatarColor(c.colorIndex), size = 52.dp)
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(c.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                if (c.tagline.isNotBlank())
-                    Text(c.tagline, style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
-                if (c.personality.isNotBlank())
-                    Text("性格：${c.personality}", style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
-                Spacer(Modifier.padding(top = 6.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (BuildConfig.BUILTIN_CONTENT) {
-                        Pill(c.orientation.label, container = MaterialTheme.colorScheme.secondaryContainer)
-                        if (c.lgbt) Pill("LGBT", container = MaterialTheme.colorScheme.tertiaryContainer)
+        Column(Modifier.fillMaxWidth().padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                EmojiBadge(c.emoji, avatarColor(c.colorIndex), size = 54.dp)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f).padding(top = 2.dp)) {
+                    Text(c.name, style = MaterialTheme.typography.titleLarge, maxLines = 2,
+                        overflow = TextOverflow.Ellipsis)
+                    if (c.tagline.isNotBlank())
+                        Text(c.tagline, style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                            overflow = TextOverflow.Ellipsis)
+                    if (c.personality.isNotBlank())
+                        Text("性格：${c.personality}", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2,
+                            overflow = TextOverflow.Ellipsis)
+                }
+                Spacer(Modifier.width(8.dp))
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    IconButton(onClick = onShare) {
+                        Icon(Icons.Filled.Share, "分享", tint = MaterialTheme.colorScheme.primary)
                     }
-                    if (c.adult) Pill("18+", container = MaterialTheme.colorScheme.tertiaryContainer)
+                    IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, "编辑") }
+                    IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, "删除", tint = MaterialTheme.colorScheme.outline) }
                 }
             }
-            IconButton(onClick = onShare) {
-                Icon(Icons.Filled.Share, "分享", tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(10.dp))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                if (BuildConfig.BUILTIN_CONTENT) {
+                    Pill(c.orientation.label, container = MaterialTheme.colorScheme.secondaryContainer)
+                    if (c.lgbt) Pill("LGBT", container = MaterialTheme.colorScheme.tertiaryContainer)
+                }
+                if (c.adult) Pill("18+", container = MaterialTheme.colorScheme.tertiaryContainer)
             }
-            IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, "编辑") }
-            IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, "删除", tint = MaterialTheme.colorScheme.outline) }
         }
     }
 }

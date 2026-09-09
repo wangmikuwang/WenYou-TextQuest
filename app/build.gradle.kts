@@ -146,7 +146,6 @@ dependencies {
     implementation(libs.camera.lifecycle)
     implementation(libs.camera.view)
     implementation(libs.mlkit.barcode)
-    implementation(libs.glide.gifdecoder)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.ext.junit)
