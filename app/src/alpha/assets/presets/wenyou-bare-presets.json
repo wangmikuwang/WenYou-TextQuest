@@ -11,7 +11,23 @@
       "id": "c-guyanshen",
       "name": "顾言深",
       "emoji": "🕵️",
-      "colorIndex": 0
+      "colorIndex": 0,
+      "initial": {
+        "metrics": {
+          "trust": 50,
+          "fatigue": 30,
+          "affection": 40,
+          "mood": 55,
+          "health": 88,
+          "arousal": 5,
+          "energy": 75
+        },
+        "flags": [
+          "刑警",
+          "队长"
+        ],
+        "description": "刚合上案卷，眼底压着一整夜的疲惫。"
+      }
     },
     {
       "greeting": "「报告出来了，你最好先看一眼。」",
@@ -23,7 +39,22 @@
       "id": "c-luwan",
       "name": "陆晚",
       "emoji": "🔬",
-      "colorIndex": 8
+      "colorIndex": 8,
+      "initial": {
+        "metrics": {
+          "trust": 52,
+          "fatigue": 28,
+          "affection": 42,
+          "mood": 60,
+          "health": 90,
+          "arousal": 5,
+          "energy": 70
+        },
+        "flags": [
+          "法医"
+        ],
+        "description": "洗净手套上的消毒水气味，才允许自己放松下来。"
+      }
     },
     {
       "greeting": "「今日打烊……不过你若是来喝一碗，我破例。」",
@@ -35,7 +66,23 @@
       "id": "c-xiaoche",
       "name": "萧彻",
       "emoji": "🗡️",
-      "colorIndex": 3
+      "colorIndex": 3,
+      "initial": {
+        "metrics": {
+          "trust": 42,
+          "fatigue": 38,
+          "affection": 48,
+          "mood": 52,
+          "health": 80,
+          "arousal": 5,
+          "energy": 68
+        },
+        "flags": [
+          "江湖",
+          "剑客"
+        ],
+        "description": "腰间只剩半壶酒，旧伤还在隐隐作痛。"
+      }
     },
     {
       "greeting": "「又要赊账？进来坐。」",
@@ -47,7 +94,23 @@
       "id": "c-ali",
       "name": "阿璃",
       "emoji": "🍶",
-      "colorIndex": 2
+      "colorIndex": 2,
+      "initial": {
+        "metrics": {
+          "trust": 48,
+          "fatigue": 25,
+          "affection": 52,
+          "mood": 62,
+          "health": 88,
+          "arousal": 5,
+          "energy": 78
+        },
+        "flags": [
+          "酒馆",
+          "老板娘"
+        ],
+        "description": "把账本合得啪啪响，嘴上不饶人，却悄悄往来人碗里多添了块肉。"
+      }
     },
     {
       "greeting": "「跃迁窗口还有四小时，够你交代后事了。」",
@@ -59,7 +122,23 @@
       "id": "c-shenyi",
       "name": "沈亦",
       "emoji": "🚀",
-      "colorIndex": 1
+      "colorIndex": 1,
+      "initial": {
+        "metrics": {
+          "trust": 55,
+          "fatigue": 30,
+          "affection": 46,
+          "mood": 60,
+          "health": 88,
+          "arousal": 5,
+          "energy": 72
+        },
+        "flags": [
+          "星舰",
+          "领航员"
+        ],
+        "description": "盯着星图，把最能全身而退的航线排在最前。"
+      }
     },
     {
       "greeting": "「你又偷偷改航线了？先说好，我可没带备用伞。」",
@@ -71,7 +150,23 @@
       "id": "c-bailu",
       "name": "白露",
       "emoji": "🛠️",
-      "colorIndex": 6
+      "colorIndex": 6,
+      "initial": {
+        "metrics": {
+          "trust": 50,
+          "fatigue": 26,
+          "affection": 50,
+          "mood": 66,
+          "health": 90,
+          "arousal": 5,
+          "energy": 74
+        },
+        "flags": [
+          "星舰",
+          "工程师"
+        ],
+        "description": "拆开面板试了三次，眼睛亮得像发现了新星。"
+      }
     },
     {
       "greeting": "「下班了？我把饭热一下。」",
@@ -83,7 +178,22 @@
       "id": "c-helan",
       "name": "贺阑",
       "emoji": "🏗️",
-      "colorIndex": 5
+      "colorIndex": 5,
+      "initial": {
+        "metrics": {
+          "trust": 48,
+          "fatigue": 30,
+          "affection": 45,
+          "mood": 58,
+          "health": 88,
+          "arousal": 5,
+          "energy": 70
+        },
+        "flags": [
+          "建筑师"
+        ],
+        "description": "在图纸上又描了一笔，把关心都算进承重里。"
+      }
     },
     {
       "greeting": "「今天想吃什么？我来点。」",
@@ -95,7 +205,22 @@
       "id": "c-qiaoyi",
       "name": "乔一",
       "emoji": "🎨",
-      "colorIndex": 4
+      "colorIndex": 4,
+      "initial": {
+        "metrics": {
+          "trust": 52,
+          "fatigue": 28,
+          "affection": 55,
+          "mood": 68,
+          "health": 88,
+          "arousal": 5,
+          "energy": 72
+        },
+        "flags": [
+          "插画师"
+        ],
+        "description": "笔停在一半，肚子先咕噜叫了一声。"
+      }
     }
   ],
   "version": 1,

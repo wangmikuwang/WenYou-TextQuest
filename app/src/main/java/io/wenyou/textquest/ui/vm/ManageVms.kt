@@ -9,6 +9,7 @@ import io.wenyou.textquest.data.model.ApiProfile
 import io.wenyou.textquest.data.model.AppBundle
 import io.wenyou.textquest.data.model.AppJson
 import io.wenyou.textquest.data.model.CharacterData
+import io.wenyou.textquest.data.model.CharacterMetrics
 import io.wenyou.textquest.data.model.ProviderKind
 import io.wenyou.textquest.data.repo.LocalLibrary
 import io.wenyou.textquest.data.repo.SettingsStore
@@ -27,7 +28,8 @@ import java.util.UUID
 data class CharacterEditorState(
     val char: CharacterData? = null,
     val isNew: Boolean = true,
-    val message: String = ""
+    val message: String = "",
+    val flagsText: String = ""
 )
 
 class CharacterEditorViewModel(
@@ -44,10 +46,13 @@ class CharacterEditorViewModel(
         if (charId != null) {
             val c = library.characters.value.firstOrNull { it.id == charId }
             if (c == null) _ui.update { it.copy(message = "未找到该角色") }
-            else _ui.update { it.copy(char = c, isNew = false) }
+            else _ui.update { it.copy(char = c, isNew = false, flagsText = c.initial.flags.joinToString(", ")) }
         } else {
             _ui.update {
-                it.copy(char = CharacterData(id = UUID.randomUUID().toString(), name = ""))
+                it.copy(
+                    char = CharacterData(id = UUID.randomUUID().toString(), name = ""),
+                    flagsText = ""
+                )
             }
         }
     }
@@ -68,16 +73,34 @@ class CharacterEditorViewModel(
     fun setBottomPrompt(v: String) = update { it.copy(bottomPrompt = v) }
     fun setGreeting(v: String) = update { it.copy(greeting = v) }
 
+    fun setInitialMetric(key: String, v: Double) = update {
+        it.copy(initial = it.initial.copy(
+            metrics = it.initial.metrics + (key to CharacterMetrics.clamp(v))
+        ))
+    }
+    fun setInitialFlagsText(v: String) = _ui.update { it.copy(flagsText = v) }
+    fun setInitialDesc(v: String) = update { it.copy(initial = it.initial.copy(description = v)) }
+
     fun save() {
-        val c = current()
+        val uiState = _ui.value
+        val c = uiState.char ?: current()
         if (c.name.isBlank()) {
             _ui.update { it.copy(message = "角色的名字不能为空") }
             return
         }
+        val flags = uiState.flagsText
+            .split(Regex("[,\\n，、\\s]+"))
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .toSet()
+        val toSave = c.copy(
+            id = c.id.ifBlank { UUID.randomUUID().toString() },
+            initial = c.initial.copy(flags = flags)
+        )
         viewModelScope.launch {
             try {
-                library.upsertCharacter(c.copy(id = c.id.ifBlank { UUID.randomUUID().toString() }))
-                _ui.update { it.copy(message = "已保存「${c.name}」", isNew = false) }
+                library.upsertCharacter(toSave)
+                _ui.update { it.copy(message = "已保存「${toSave.name}」", isNew = false) }
             } catch (t: Throwable) {
                 _ui.update { it.copy(message = "保存失败：${t.message}") }
             }

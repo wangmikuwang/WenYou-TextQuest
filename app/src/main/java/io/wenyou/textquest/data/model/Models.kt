@@ -63,6 +63,8 @@ data class CharacterData(
     val extraPrompt: String = "",
     /** 底层基调提示语：拼接系统提示时位于该角色人设最底，用于放“不可动摇”的底层规则；留空则不注入。 */
     val bottomPrompt: String = "",
+    /** 初始状态（开局新会话沿用；可在角色编辑器调整，对局中由 AI 导演实时更新）。 */
+    val initial: CharacterState = CharacterState(),
     /** 是否为 LGBT 向内容（供「内容开关」过滤显示）。 */
     val lgbt: Boolean = false,
     /** 是否为成人向内容。 */

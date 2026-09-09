@@ -93,7 +93,7 @@ class PlayViewModel(
             val loadId = saveId.takeIf { it.isNotBlank() && it != "new" }
             val loadedSlot = loadId?.let { library.saves.value.firstOrNull { x -> x.id == it } }
             val saveName = loadedSlot?.name ?: ""
-            val base: SessionState = loadedSlot?.state ?: GameEngine.newSession(story)
+            val base: SessionState = loadedSlot?.state ?: GameEngine.newSession(story, chars)
             _ui.update {
                 it.copy(story = story, characters = chars, aiMode = story.mode == StoryMode.AI_DIRECTOR,
                     activeSaveId = loadId, saveName = saveName,
@@ -450,7 +450,7 @@ class PlayViewModel(
         // 若仍有未结束的生成任务，先取消，避免旧结果写入新开局
         aiJob?.cancel()
         aiJob = null
-        val fresh = GameEngine.newSession(story)
+        val fresh = GameEngine.newSession(story, _ui.value.characters)
         _ui.update {
             it.copy(activeSaveId = null, saveName = "", lastMessage = "",
                 pendingAiChoices = emptyList(), aiDelta = "", stoppedTitle = "", stoppedMessage = "")

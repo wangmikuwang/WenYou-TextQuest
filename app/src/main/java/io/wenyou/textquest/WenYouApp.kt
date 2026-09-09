@@ -6,6 +6,7 @@ import io.wenyou.textquest.data.ai.AiDirector
 import io.wenyou.textquest.data.llm.ChatClient
 import io.wenyou.textquest.data.model.AppBundle
 import io.wenyou.textquest.data.model.AppJson
+import io.wenyou.textquest.data.model.CharacterData
 import io.wenyou.textquest.data.repo.LocalLibrary
 import io.wenyou.textquest.data.repo.SettingsStore
 import io.wenyou.textquest.data.sample.SampleData
@@ -61,6 +62,48 @@ class WenYouApp : Application() {
                     ), markLgbt = false)
                 }
             }
+            enrichBuiltinInitials()
+        }
+    }
+
+    /**
+     * 一次性为「已存在但初始状态为空」的内置角色补齐 [CharacterData.initial]。
+     * 非破坏性：只填充 metrics 为空的角色，不覆盖用户已定的初始状态，
+     * 也不会把用户删除的内置内容重新写回（仅针对当前仍存在的 id）。
+     */
+    private suspend fun enrichBuiltinInitials() {
+        if (container.settings.presetEnrichDone) return
+        try {
+            val names = when {
+                BuildConfig.BUILTIN_CONTENT -> listOf(
+                    "presets/wenyou-bare-presets.json",
+                    "presets/wenyou-bare2-presets.json",
+                    "presets/wenyou-romance-presets.json",
+                    "presets/wenyou-extended-presets.json",
+                    "presets/wenyou-adult-presets.json"
+                )
+                BuildConfig.BARE_CONTENT -> listOf(
+                    "presets/wenyou-bare-presets.json",
+                    "presets/wenyou-bare2-presets.json"
+                )
+                else -> emptyList()
+            }
+            val existing = container.library.characters.value.associateBy { it.id }
+            val updates = mutableListOf<CharacterData>()
+            for (name in names) {
+                val text = assets.open(name).bufferedReader(Charsets.UTF_8).use { it.readText() }
+                val bundle = AppJson.decodeFromString(AppBundle.serializer(), text)
+                for (c in bundle.characters) {
+                    val cur = existing[c.id] ?: continue
+                    if (cur.initial.metrics.isEmpty() && c.initial.metrics.isNotEmpty()) {
+                        updates += cur.copy(initial = c.initial)
+                    }
+                }
+            }
+            for (cc in updates) container.library.upsertCharacter(cc)
+            container.settings.presetEnrichDone = true
+        } catch (_: Throwable) {
+            // 补齐失败不阻塞主流程，下次启动重试
         }
     }
 

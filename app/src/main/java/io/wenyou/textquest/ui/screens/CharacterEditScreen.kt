@@ -21,15 +21,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import io.wenyou.textquest.WenYouApp
+import io.wenyou.textquest.data.model.CharacterMetrics
 import io.wenyou.textquest.ui.common.AppField
 import io.wenyou.textquest.ui.common.ColorDots
 import io.wenyou.textquest.ui.common.EmojiBadge
@@ -134,6 +137,51 @@ fun CharacterEditScreen(container: WenYouApp.AppContainer, nav: NavHostControlle
                         label = "底层基调 / 不可动摇规则", minLines = 5,
                         placeholder = "写本角色必须无条件遵守的底层规则……会拼接到该角色人设的最底部。",
                         supporting = "置于该角色人设最底，冲突时以此层为准；留空则不注入。")
+                }
+            }
+            item { SectionHeader("初始状态（开局沿用）") }
+            item {
+                TonalCard {
+                    Text(
+                        "对局开始时该角色的数值、标记与外貌描述，之后由 AI 导演实时更新。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.padding(top = 8.dp))
+                    CharacterMetrics.defs.forEach { def ->
+                        val v = char.initial.metrics[def.key] ?: 0.0
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text("${def.icon} ${def.label}", modifier = Modifier.width(96.dp),
+                                style = MaterialTheme.typography.labelLarge)
+                            Slider(
+                                value = v.toFloat(),
+                                onValueChange = { vm.setInitialMetric(def.key, it.toDouble()) },
+                                valueRange = 0f..100f,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(v.toInt().toString(), modifier = Modifier.width(28.dp),
+                                textAlign = TextAlign.End,
+                                style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                    Spacer(Modifier.padding(top = 8.dp))
+                    AppField(
+                        value = ui.flagsText,
+                        onValueChange = { vm.setInitialFlagsText(it) },
+                        label = "初始标记（flags）",
+                        minLines = 2,
+                        placeholder = "例如：成年、警官、搭档（每行一个，或用逗号分隔）",
+                        supporting = "用于剧情判断；可留空。"
+                    )
+                    Spacer(Modifier.padding(top = 8.dp))
+                    AppField(
+                        value = char.initial.description,
+                        onValueChange = { vm.setInitialDesc(it) },
+                        label = "初始状态描述",
+                        minLines = 2,
+                        placeholder = "例如：刚结束一场会议，靠在椅背上闭目养神。",
+                        supporting = "角色侧边抽屉显示的当前状态描述，可留空。"
+                    )
                 }
             }
             item { Spacer(Modifier.padding(top = 4.dp)) }

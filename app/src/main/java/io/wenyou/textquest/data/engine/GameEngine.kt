@@ -1,5 +1,6 @@
 package io.wenyou.textquest.data.engine
 
+import io.wenyou.textquest.data.model.CharacterData
 import io.wenyou.textquest.data.model.CharacterMetrics
 import io.wenyou.textquest.data.model.CharacterState
 import io.wenyou.textquest.data.model.CompareOp
@@ -167,16 +168,23 @@ object GameEngine {
 
     // ---------------- 会话与流转 ----------------
 
-    fun newSession(story: Story, now: Long = System.currentTimeMillis()): SessionState =
-        SessionState(
+    fun newSession(
+        story: Story,
+        characters: List<CharacterData> = emptyList(),
+        now: Long = System.currentTimeMillis()
+    ): SessionState {
+        val charStates = characters.associate { it.id to it.initial }
+        return SessionState(
             storyId = story.id,
             currentNodeId = story.startNodeId,
             flags = story.initialFlags,
             variables = story.initialVariables,
             history = emptyList(),
             aiEndless = story.mode == io.wenyou.textquest.data.model.StoryMode.AI_DIRECTOR,
-            updatedAt = now
+            updatedAt = now,
+            characterStates = charStates
         )
+    }
 
     /** 到达某节点：应用 onEnter 效果并记录说明。 */
     fun arriveAt(story: Story, state: SessionState, nodeId: String): Arrival {

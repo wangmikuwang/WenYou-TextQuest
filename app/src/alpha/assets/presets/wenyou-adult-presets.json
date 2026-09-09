@@ -10,7 +10,24 @@
       "background": "27岁，广告公司创意总监，和下属苏承是多年默契搭档；最近他们打破了一条心照不宣的线。",
       "emoji": "🌹",
       "exampleDialogue": "「把门锁好。……剩下的，我来教你。」",
-      "personality": "理智、掌控感强、私底下温柔；看重分寸，讨厌被冒犯。"
+      "personality": "理智、掌控感强、私底下温柔；看重分寸，讨厌被冒犯。",
+      "initial": {
+        "metrics": {
+          "trust": 35,
+          "fatigue": 35,
+          "affection": 45,
+          "mood": 55,
+          "health": 85,
+          "arousal": 25,
+          "energy": 75
+        },
+        "flags": [
+          "职场",
+          "成年人",
+          "上司"
+        ],
+        "description": "刚结束一场会议，靠在高背椅上闭目养神，等着那杯多加冰的美式。"
+      }
     },
     {
       "tagline": "26岁·创意副总监：年轻、克制、藏不住心动",
@@ -22,7 +39,24 @@
       "background": "26岁，创意副总监，暗恋上司林薇很久；那晚加班的灯下，他终于没忍住。",
       "emoji": "🗝️",
       "exampleDialogue": "「林总监……我现在，不想把你当上司了。」",
-      "personality": "严谨、克制、自尊心强；对林薇又敬又动心，越在意越笨拙。"
+      "personality": "严谨、克制、自尊心强；对林薇又敬又动心，越在意越笨拙。",
+      "initial": {
+        "metrics": {
+          "trust": 45,
+          "fatigue": 30,
+          "affection": 55,
+          "mood": 50,
+          "health": 88,
+          "arousal": 30,
+          "energy": 70
+        },
+        "flags": [
+          "职场",
+          "成年人",
+          "下属"
+        ],
+        "description": "把领带松了半截，目光却总跟着总监的背影走。"
+      }
     },
     {
       "tagline": "24岁·男娘咖啡师：夜里是另一个人",
@@ -34,7 +68,24 @@
       "background": "24岁，白天在咖啡店以女装示人，夜里在吧台后收工；只有青梅竹马江御见过他卸妆后真实的样子。",
       "emoji": "🌙",
       "exampleDialogue": "「别用玩具的眼神看我……要的话，就用成人的方式。」",
-      "personality": "白天天真可爱，夜晚收起伪装又冷静又危险；喜欢被认真对待，厌恶轻浮。"
+      "personality": "白天天真可爱，夜晚收起伪装又冷静又危险；喜欢被认真对待，厌恶轻浮。",
+      "initial": {
+        "metrics": {
+          "trust": 40,
+          "fatigue": 35,
+          "affection": 50,
+          "mood": 60,
+          "health": 85,
+          "arousal": 20,
+          "energy": 65
+        },
+        "flags": [
+          "成年",
+          "咖啡师",
+          "伪装"
+        ],
+        "description": "白天挂着营业笑容，夜里卸下假发后才露出真实的神情。"
+      }
     },
     {
       "tagline": "25岁·调酒师：看着漫不经心，其实早想占有",
@@ -46,7 +97,24 @@
       "background": "25岁，酒吧调酒师，和阿默青梅竹马；见过彼此的狼狈，也知道对方最想要什么。",
       "emoji": "🥃",
       "exampleDialogue": "「我这儿只收真心话。……你，要不要试试醉一次？」",
-      "personality": "慵懒、嘴欠、占有欲强但对阿默极有耐心；从不开玩笑过了线。"
+      "personality": "慵懒、嘴欠、占有欲强但对阿默极有耐心；从不开玩笑过了线。",
+      "initial": {
+        "metrics": {
+          "trust": 45,
+          "fatigue": 25,
+          "affection": 50,
+          "mood": 58,
+          "health": 90,
+          "arousal": 25,
+          "energy": 70
+        },
+        "flags": [
+          "成年",
+          "调酒师",
+          "青梅竹马"
+        ],
+        "description": "倚着吧台擦杯，目光懒懒地落回那个人身上。"
+      }
     }
   ],
   "saves": [],

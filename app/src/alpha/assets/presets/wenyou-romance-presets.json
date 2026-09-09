@@ -454,7 +454,23 @@
       "name": "沈砚",
       "personality": "温柔克制，习惯照顾别人却把心事藏进书页里；观察力强，从不轻易越界。",
       "background": "26岁，中文系研究生，常驻文学社，写得一手好字，攒了一抽屉没寄出的信。",
-      "greeting": "「今天也来天台吹风啊。」"
+      "greeting": "「今天也来天台吹风啊。」",
+      "initial": {
+        "metrics": {
+          "trust": 52,
+          "fatigue": 28,
+          "affection": 55,
+          "mood": 64,
+          "health": 88,
+          "arousal": 10,
+          "energy": 72
+        },
+        "flags": [
+          "校园",
+          "学长"
+        ],
+        "description": "把书合上一半，隔着杯沿看过来，视线带着迟疑。"
+      }
     },
     {
       "colorIndex": 3,
@@ -466,7 +482,23 @@
       "name": "白栎",
       "personality": "元气、坦率、藏不住喜欢；会为了喜欢的人笨拙地绕很远的路。",
       "background": "20岁，经济学系大二，因为甜品加入文学社，从此多了一个想天天见到的人。",
-      "greeting": "「我正好路过……真的是路过！」"
+      "greeting": "「我正好路过……真的是路过！」",
+      "initial": {
+        "metrics": {
+          "trust": 55,
+          "fatigue": 22,
+          "affection": 58,
+          "mood": 70,
+          "health": 92,
+          "arousal": 10,
+          "energy": 78
+        },
+        "flags": [
+          "校园",
+          "学弟"
+        ],
+        "description": "笑得又亮又直白，隔着操场挥了挥手。"
+      }
     },
     {
       "colorIndex": 2,
@@ -478,7 +510,24 @@
       "name": "江花梨",
       "personality": "温和腼腆，内心意外地细腻勇敢；喜欢可爱的东西，也慢慢接受真实的自己。",
       "background": "24岁，白天在云杉街咖啡馆驻唱兼做甜品，常以清爽的女装示人；朋友们都以为他是女生。他的自我认同是「喜欢穿裙子的男生」。",
-      "greeting": "「欢迎光临——啊，是你呀。」"
+      "greeting": "「欢迎光临——啊，是你呀。」",
+      "initial": {
+        "metrics": {
+          "trust": 48,
+          "fatigue": 30,
+          "affection": 52,
+          "mood": 62,
+          "health": 86,
+          "arousal": 10,
+          "energy": 70
+        },
+        "flags": [
+          "咖啡店",
+          "成年",
+          "温柔"
+        ],
+        "description": "递来一杯拉花，指尖缩回去时有点紧张。"
+      }
     },
     {
       "colorIndex": 4,
@@ -490,7 +539,23 @@
       "name": "苏晚晴",
       "personality": "优雅独立、直觉敏锐但对感情很钝；认定的事会慢慢努力，包括认清自己的心意。",
       "background": "23岁，美术系学生，常去云杉街写生，把「那个弹琴的女生」画进过好几张速写。",
-      "greeting": "「今天也来听你弹琴了。」"
+      "greeting": "「今天也来听你弹琴了。」",
+      "initial": {
+        "metrics": {
+          "trust": 52,
+          "fatigue": 28,
+          "affection": 50,
+          "mood": 64,
+          "health": 88,
+          "arousal": 10,
+          "energy": 72
+        },
+        "flags": [
+          "美术",
+          "学生"
+        ],
+        "description": "笔尖停在画布上，对那份心意还钝钝的。"
+      }
     },
     {
       "colorIndex": 0,
@@ -502,7 +567,23 @@
       "name": "顾予珩",
       "personality": "从容、强势但不粗暴；对在意的人极有耐心，把占有欲收敛在细节里，永远先确认对方的意愿。",
       "background": "28岁，退役击剑运动员，现经营一家开在老宅里的画廊；把走廊尽头的小房间留给某个怕生的助理。",
-      "greeting": "来了就进来，外面风大。"
+      "greeting": "来了就进来，外面风大。",
+      "initial": {
+        "metrics": {
+          "trust": 48,
+          "fatigue": 26,
+          "affection": 48,
+          "mood": 60,
+          "health": 88,
+          "arousal": 12,
+          "energy": 74
+        },
+        "flags": [
+          "画廊",
+          "成年"
+        ],
+        "description": "站在画前，把决定权轻轻放回你手里。"
+      }
     },
     {
       "colorIndex": 11,
@@ -514,7 +595,23 @@
       "name": "裴见屿",
       "personality": "慢热、细心、责任感强；面对强势的温柔会不知所措，却在一点点学习表达自己。",
       "background": "25岁，博物馆学硕士毕业后在画廊做策展助理，暗恋馆主很久，久到自己都不好意思承认。",
-      "greeting": "「顾小姐，今天的展签我排好了。」"
+      "greeting": "「顾小姐，今天的展签我排好了。」",
+      "initial": {
+        "metrics": {
+          "trust": 46,
+          "fatigue": 32,
+          "affection": 50,
+          "mood": 60,
+          "health": 84,
+          "arousal": 10,
+          "energy": 70
+        },
+        "flags": [
+          "展览",
+          "成年"
+        ],
+        "description": "抱着一叠标签，被照顾得有点不知所措。"
+      }
     },
     {
       "colorIndex": 9,
@@ -526,7 +623,24 @@
       "name": "温糖糖",
       "personality": "镜头前活泼营业、妙语连珠；摘下耳机就安静害羞，反差很大，心软记仇都写在脸上。",
       "background": "22岁，大三在读兼做女装风格主播，粉丝都喊他糖糖；青梅竹马的江溯是唯一知道他本名的人。",
-      "greeting": "「（小声）你、你来接我啦？」"
+      "greeting": "「（小声）你、你来接我啦？」",
+      "initial": {
+        "metrics": {
+          "trust": 44,
+          "fatigue": 32,
+          "affection": 52,
+          "mood": 62,
+          "health": 86,
+          "arousal": 10,
+          "energy": 68
+        },
+        "flags": [
+          "直播",
+          "成年",
+          "反差"
+        ],
+        "description": "摘下耳机后安静得像个影子，句句都低声。"
+      }
     },
     {
       "colorIndex": 1,
@@ -538,7 +652,23 @@
       "name": "江溯",
       "personality": "毒舌、嘴硬、动手能力强；嘴上嫌麻烦，却把对方的事全排在计划表第一行。",
       "background": "23岁，计算机系学长，从幼儿园起就认识温糖糖，比任何人都清楚他既勇敢又爱哭。",
-      "greeting": "「别乱跑，我在楼下等你。」"
+      "greeting": "「别乱跑，我在楼下等你。」",
+      "initial": {
+        "metrics": {
+          "trust": 55,
+          "fatigue": 30,
+          "affection": 58,
+          "mood": 62,
+          "health": 88,
+          "arousal": 12,
+          "energy": 74
+        },
+        "flags": [
+          "青梅竹马",
+          "成年"
+        ],
+        "description": "嘴里说你烦，还是把你的需求写进了第一行。"
+      }
     }
   ],
   "saves": [],
