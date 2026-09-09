@@ -27,7 +27,8 @@
           "学生"
         ],
         "description": "又被人堵着问借笔记，温温和和地应了。"
-      }
+      },
+      "orientation": "straight"
     },
     {
       "emoji": "✏️",
@@ -55,7 +56,8 @@
           "学生"
         ],
         "description": "嘴上嫌你吵，还是把笔记往你那边推了推。"
-      }
+      },
+      "orientation": "straight"
     },
     {
       "emoji": "🍲",
@@ -83,7 +85,8 @@
           "姐姐"
         ],
         "description": "把热汤端上桌，才靠在椅背上歇了口气。"
-      }
+      },
+      "orientation": "straight"
     },
     {
       "emoji": "🧳",
@@ -111,7 +114,8 @@
           "弟弟"
         ],
         "description": "风尘仆仆地推门，第一句还是那碗汤有没有留。"
-      }
+      },
+      "orientation": "straight"
     },
     {
       "emoji": "💼",
@@ -139,7 +143,8 @@
           "上司"
         ],
         "description": "合上电脑，顺手记下了谁爱喝哪一款咖啡。"
-      }
+      },
+      "orientation": "straight"
     },
     {
       "emoji": "📋",
@@ -167,7 +172,8 @@
           "副总监"
         ],
         "description": "改了三版方案，手边摊着对方的备注深呼吸。"
-      }
+      },
+      "orientation": "straight"
     }
   ],
   "stories": [

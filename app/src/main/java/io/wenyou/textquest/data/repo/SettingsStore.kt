@@ -87,6 +87,11 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_PRESET_ENRICH, false)
         set(value) = prefs.edit().putBoolean(KEY_PRESET_ENRICH, value).apply()
 
+    /** 已为内置角色补齐过一次「性取向」（非破坏性）。 */
+    var presetOrientDone: Boolean
+        get() = prefs.getBoolean(KEY_PRESET_ORIENT, false)
+        set(value) = prefs.edit().putBoolean(KEY_PRESET_ORIENT, value).apply()
+
     /** 崩溃日志保存目录（SAF 授权的 Documents tree URI；空 = 未选择）。 */
     var crashDirUri: String?
         get() = prefs.getString(KEY_CRASH_DIR, null)
@@ -103,6 +108,7 @@ class SettingsStore(context: Context) {
         const val KEY_SEEDED = "seeded_v1"
         const val KEY_PRESET_FILES = "preset_files_applied_v2"
         const val KEY_PRESET_ENRICH = "preset_enrich_initial_v1"
+        const val KEY_PRESET_ORIENT = "preset_enrich_orient_v1"
         const val KEY_CRASH_DIR = "crash_dir_uri"
         const val KEY_SHOW_LGBT = "show_lgbt"
         const val KEY_ADULT = "adult_content"

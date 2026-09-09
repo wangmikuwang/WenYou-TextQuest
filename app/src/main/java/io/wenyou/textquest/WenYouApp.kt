@@ -7,6 +7,7 @@ import io.wenyou.textquest.data.llm.ChatClient
 import io.wenyou.textquest.data.model.AppBundle
 import io.wenyou.textquest.data.model.AppJson
 import io.wenyou.textquest.data.model.CharacterData
+import io.wenyou.textquest.data.model.SexualOrientation
 import io.wenyou.textquest.data.repo.LocalLibrary
 import io.wenyou.textquest.data.repo.SettingsStore
 import io.wenyou.textquest.data.sample.SampleData
@@ -67,12 +68,14 @@ class WenYouApp : Application() {
     }
 
     /**
-     * 一次性为「已存在但初始状态为空」的内置角色补齐 [CharacterData.initial]。
-     * 非破坏性：只填充 metrics 为空的角色，不覆盖用户已定的初始状态，
+     * 一次性为「已存在且未配置」的内置角色补齐 [CharacterData.initial] 与 [CharacterData.orientation]。
+     * 非破坏性：只填充初始状态为空、性取向未标注的角色，不覆盖用户自定，
      * 也不会把用户删除的内置内容重新写回（仅针对当前仍存在的 id）。
      */
     private suspend fun enrichBuiltinInitials() {
-        if (container.settings.presetEnrichDone) return
+        val doneInitial = container.settings.presetEnrichDone
+        val doneOrient = container.settings.presetOrientDone
+        if (doneInitial && doneOrient) return
         try {
             val names = when {
                 BuildConfig.BUILTIN_CONTENT -> listOf(
@@ -89,19 +92,29 @@ class WenYouApp : Application() {
                 else -> emptyList()
             }
             val existing = container.library.characters.value.associateBy { it.id }
+            var changedInitial = false
+            var changedOrient = false
             val updates = mutableListOf<CharacterData>()
             for (name in names) {
                 val text = assets.open(name).bufferedReader(Charsets.UTF_8).use { it.readText() }
                 val bundle = AppJson.decodeFromString(AppBundle.serializer(), text)
                 for (c in bundle.characters) {
                     val cur = existing[c.id] ?: continue
-                    if (cur.initial.metrics.isEmpty() && c.initial.metrics.isNotEmpty()) {
-                        updates += cur.copy(initial = c.initial)
+                    var next = cur
+                    if (!doneInitial && cur.initial.metrics.isEmpty() && c.initial.metrics.isNotEmpty()) {
+                        next = next.copy(initial = c.initial)
+                        changedInitial = true
                     }
+                    if (!doneOrient && cur.orientation == SexualOrientation.UNKNOWN && c.orientation != SexualOrientation.UNKNOWN) {
+                        next = next.copy(orientation = c.orientation)
+                        changedOrient = true
+                    }
+                    if (next !== cur) updates += next
                 }
             }
             for (cc in updates) container.library.upsertCharacter(cc)
-            container.settings.presetEnrichDone = true
+            if (changedInitial) container.settings.presetEnrichDone = true
+            if (changedOrient) container.settings.presetOrientDone = true
         } catch (_: Throwable) {
             // 补齐失败不阻塞主流程，下次启动重试
         }

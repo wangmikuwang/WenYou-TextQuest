@@ -470,7 +470,8 @@
           "学长"
         ],
         "description": "把书合上一半，隔着杯沿看过来，视线带着迟疑。"
-      }
+      },
+      "orientation": "gay"
     },
     {
       "colorIndex": 3,
@@ -498,7 +499,8 @@
           "学弟"
         ],
         "description": "笑得又亮又直白，隔着操场挥了挥手。"
-      }
+      },
+      "orientation": "gay"
     },
     {
       "colorIndex": 2,
@@ -527,7 +529,8 @@
           "温柔"
         ],
         "description": "递来一杯拉花，指尖缩回去时有点紧张。"
-      }
+      },
+      "orientation": "bi"
     },
     {
       "colorIndex": 4,
@@ -555,7 +558,8 @@
           "学生"
         ],
         "description": "笔尖停在画布上，对那份心意还钝钝的。"
-      }
+      },
+      "orientation": "bi"
     },
     {
       "colorIndex": 0,
@@ -583,7 +587,8 @@
           "成年"
         ],
         "description": "站在画前，把决定权轻轻放回你手里。"
-      }
+      },
+      "orientation": "bi"
     },
     {
       "colorIndex": 11,
@@ -611,7 +616,8 @@
           "成年"
         ],
         "description": "抱着一叠标签，被照顾得有点不知所措。"
-      }
+      },
+      "orientation": "bi"
     },
     {
       "colorIndex": 9,
@@ -640,7 +646,8 @@
           "反差"
         ],
         "description": "摘下耳机后安静得像个影子，句句都低声。"
-      }
+      },
+      "orientation": "bi"
     },
     {
       "colorIndex": 1,
@@ -668,7 +675,8 @@
           "成年"
         ],
         "description": "嘴里说你烦，还是把你的需求写进了第一行。"
-      }
+      },
+      "orientation": "bi"
     }
   ],
   "saves": [],

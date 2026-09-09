@@ -4,7 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.data.model.SaveSlot
+import io.wenyou.textquest.data.model.SexualOrientation
 import io.wenyou.textquest.data.model.Story
+import io.wenyou.textquest.data.model.StoryMode
+import io.wenyou.textquest.data.model.storyContentClass
 import io.wenyou.textquest.data.repo.LocalLibrary
 import io.wenyou.textquest.data.repo.SettingsStore
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,6 +18,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** 主页 / 故事库共用的列表状态。 */
@@ -22,6 +26,28 @@ data class HomeCard(
     val slot: SaveSlot,
     val story: Story?,
     val stepText: String
+)
+
+/** 剧情库按「运行模式」的分类。 */
+enum class StoryModeFilter(val label: String) {
+    ALL("全部"),
+    SCRIPT("分支剧本"),
+    AI_DIRECTOR("AI 导演")
+}
+
+/** 剧情库按「内容」的分类。 */
+enum class StoryContentFilter(val label: String) {
+    ALL("全部"),
+    ALL_AGE("全年龄"),
+    LGBT("LGBT"),
+    ADULT("18+")
+}
+
+/** 剧情库 / 角色库的分类过滤状态。 */
+data class LibraryUi(
+    val modeFilter: StoryModeFilter = StoryModeFilter.ALL,
+    val contentFilter: StoryContentFilter = StoryContentFilter.ALL,
+    val orientationFilter: SexualOrientation? = null
 )
 
 class LibraryViewModel(container: WenYouApp.AppContainer) : ViewModel() {
@@ -33,6 +59,7 @@ class LibraryViewModel(container: WenYouApp.AppContainer) : ViewModel() {
     private val _stories = MutableStateFlow(library.stories.value)
     private val _characters = MutableStateFlow(library.characters.value)
     private val _providers = MutableStateFlow(library.providers.value)
+    private val _filters = MutableStateFlow(LibraryUi())
 
     /** 内容开关：false 时隐藏 LGBT 预设内容。 */
     private val showLgbt = settings.state.map { it.showLgbt }
@@ -49,22 +76,44 @@ class LibraryViewModel(container: WenYouApp.AppContainer) : ViewModel() {
         viewModelScope.launch { library.providers.collect { _providers.value = it } }
     }
 
+    val filters: StateFlow<LibraryUi> = _filters.asStateFlow()
+
     val saves: StateFlow<List<SaveSlot>> = _saves.asStateFlow()
 
-    /** 按“内容开关/成人开关”过滤后的剧情。 */
-    val stories: StateFlow<List<Story>> = combine(_stories, showLgbt, adultContent) { list, lgbt, adult ->
-        list.filter { (lgbt || !it.lgbt) && (adult || !it.adult) }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, _stories.value)
-
-    /** 按“内容开关/成人开关”过滤后的角色。 */
-    val characters: StateFlow<List<io.wenyou.textquest.data.model.CharacterData>> =
-        combine(_characters, showLgbt, adultContent) { list, lgbt, adult ->
+    /** 按「内容开关/成人开关」+「模式分类」+「内容分类」过滤后的剧情。 */
+    val stories: StateFlow<List<Story>> = combine(_stories, showLgbt, adultContent, _filters) {
+            list: List<Story>, lgbt: Boolean, adult: Boolean, f: LibraryUi ->
             list.filter { (lgbt || !it.lgbt) && (adult || !it.adult) }
-        }.stateIn(viewModelScope, SharingStarted.Eagerly, _characters.value)
+                .let { seq ->
+                    when (f.modeFilter) {
+                        StoryModeFilter.ALL -> seq
+                        StoryModeFilter.SCRIPT -> seq.filter { it.mode == StoryMode.SCRIPT }
+                        StoryModeFilter.AI_DIRECTOR -> seq.filter { it.mode == StoryMode.AI_DIRECTOR }
+                    }
+                }
+                .let { seq ->
+                    when (f.contentFilter) {
+                        StoryContentFilter.ALL -> seq
+                        else -> seq.filter { storyContentClass(it).label == f.contentFilter.label }
+                    }
+                }
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, _stories.value)
+
+    /** 按「内容开关/成人开关」+「性取向」过滤后的角色。 */
+    val characters: StateFlow<List<io.wenyou.textquest.data.model.CharacterData>> =
+        combine(_characters, showLgbt, adultContent, _filters) {
+                list: List<io.wenyou.textquest.data.model.CharacterData>,
+                lgbt: Boolean, adult: Boolean, f: LibraryUi ->
+                list.filter { (lgbt || !it.lgbt) && (adult || !it.adult) }
+                    .let { seq ->
+                        val o = f.orientationFilter
+                        if (o == null) seq else seq.filter { it.orientation == o }
+                    }
+            }.stateIn(viewModelScope, SharingStarted.Eagerly, _characters.value)
 
     val providers: StateFlow<List<io.wenyou.textquest.data.model.ApiProfile>> = _providers.asStateFlow()
 
-    val homeCards: StateFlow<List<HomeCard>> = combine(_saves, stories) {
+    val homeCards: StateFlow<List<HomeCard>> = combine(_saves, _stories) {
             saves: List<SaveSlot>, stories: List<Story> ->
             saves.sortedByDescending { it.updatedAt }.map { slot ->
                 val story = stories.firstOrNull { it.id == slot.state.storyId }
@@ -75,6 +124,14 @@ class LibraryViewModel(container: WenYouApp.AppContainer) : ViewModel() {
                 )
             }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** 某部剧情的全部存档（用于剧情详情页「读取存档」）。 */
+    fun savesForStory(storyId: String): List<SaveSlot> =
+        _saves.value.filter { it.state.storyId == storyId }.sortedByDescending { it.updatedAt }
+
+    fun setModeFilter(f: StoryModeFilter) = _filters.update { it.copy(modeFilter = f) }
+    fun setContentFilter(f: StoryContentFilter) = _filters.update { it.copy(contentFilter = f) }
+    fun setOrientationFilter(o: SexualOrientation?) = _filters.update { it.copy(orientationFilter = o) }
 
     fun deleteSave(id: String) = viewModelScope.launch { library.deleteSave(id) }
     fun deleteStory(id: String) = viewModelScope.launch { library.deleteStory(id) }

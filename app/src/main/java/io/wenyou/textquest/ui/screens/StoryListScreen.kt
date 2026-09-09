@@ -1,6 +1,7 @@
 package io.wenyou.textquest.ui.screens
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,9 +14,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
@@ -24,6 +27,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,13 +46,17 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.data.model.NodeKind
+import io.wenyou.textquest.data.model.SaveSlot
 import io.wenyou.textquest.data.model.Story
+import io.wenyou.textquest.data.model.storyContentClass
 import io.wenyou.textquest.ui.HubScaffold
 import io.wenyou.textquest.ui.R
 import io.wenyou.textquest.ui.common.EmojiBadge
 import io.wenyou.textquest.ui.common.Pill
 import io.wenyou.textquest.ui.theme.avatarColor
 import io.wenyou.textquest.ui.vm.LibraryViewModel
+import io.wenyou.textquest.ui.vm.StoryContentFilter
+import io.wenyou.textquest.ui.vm.StoryModeFilter
 import io.wenyou.textquest.ui.vm.Vms
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,7 +64,9 @@ import io.wenyou.textquest.ui.vm.Vms
 fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
     val vm: LibraryViewModel = viewModel(factory = Vms.factory { LibraryViewModel(it) })
     val stories by vm.stories.collectAsState()
+    val filters by vm.filters.collectAsState()
     var pendingDelete by remember { mutableStateOf<Story?>(null) }
+    var managesSaves by remember { mutableStateOf<Story?>(null) }
 
     HubScaffold(
         topBar = { CenterAlignedTopAppBar(title = { Text("剧情库") }) },
@@ -78,11 +88,29 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    item {
+                        FilterChipRow(
+                            options = StoryModeFilter.entries,
+                            selected = filters.modeFilter,
+                            label = { it.label },
+                            onSelect = { vm.setModeFilter(it) }
+                        )
+                    }
+                    item {
+                        FilterChipRow(
+                            options = StoryContentFilter.entries,
+                            selected = filters.contentFilter,
+                            label = { it.label },
+                            onSelect = { vm.setContentFilter(it) }
+                        )
+                    }
                     items(stories, key = { it.id }) { story ->
-                        StoryCard(story, onEdit = { nav.navigate(R.storyEdit(story.id)) },
+                        StoryCard(story,
+                            onEdit = { nav.navigate(R.storyEdit(story.id)) },
                             onPlay = { nav.navigate(R.play(story.id)) },
+                            onSaves = { managesSaves = story },
                             onDelete = { pendingDelete = story })
                     }
                 }
@@ -112,11 +140,82 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
             }
         )
     }
+
+    managesSaves?.let { story ->
+        SavesDialog(
+            story = story,
+            saves = vm.savesForStory(story.id),
+            onLoad = { slot -> nav.navigate(R.play(story.id, slot.id)) },
+            onDelete = { slot -> vm.deleteSave(slot.id) },
+            onDismiss = { managesSaves = null }
+        )
+    }
+}
+
+/** 横向滚动的过滤 Chip 行（全部 + 各分类）。 */
+@Composable
+private fun <T> FilterChipRow(
+    options: List<T>,
+    selected: T,
+    label: (T) -> String,
+    onSelect: (T) -> Unit
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+    ) {
+        options.forEach { opt ->
+            FilterChip(
+                selected = opt == selected,
+                onClick = { onSelect(opt) },
+                label = { Text(label(opt)) }
+            )
+        }
+    }
+}
+
+/** 列出某剧情的所有存档：可读取或删除。 */
+@Composable
+private fun SavesDialog(
+    story: Story,
+    saves: List<SaveSlot>,
+    onLoad: (SaveSlot) -> Unit,
+    onDelete: (SaveSlot) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("存档 · ${story.title}") },
+        text = {
+            if (saves.isEmpty()) {
+                Text("还没有存档。对局页右上角「✓」可保存当前进度。",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    saves.forEach { slot ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f).clickable { onLoad(slot) }) {
+                                Text(slot.name, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+                                Text("${slot.state.history.size} 步 · ${LibraryViewModel.formatWhen(slot.updatedAt)}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            IconButton(onClick = { onDelete(slot) }) {
+                                Icon(Icons.Filled.Delete, "删除", tint = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun StoryCard(story: Story, onEdit: () -> Unit, onPlay: () -> Unit, onDelete: () -> Unit) {
+private fun StoryCard(story: Story, onEdit: () -> Unit, onPlay: () -> Unit, onSaves: () -> Unit, onDelete: () -> Unit) {
     val color = avatarColor(story.colorIndex)
     val aiNodes = story.nodes.values.count { it.kind == NodeKind.AI }
     Card(
@@ -134,6 +233,9 @@ private fun StoryCard(story: Story, onEdit: () -> Unit, onPlay: () -> Unit, onDe
                 Spacer(Modifier.padding(top = 6.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Pill(story.mode.label)
+                    Pill(storyContentClass(story).label,
+                        container = if (story.adult) MaterialTheme.colorScheme.tertiaryContainer
+                        else MaterialTheme.colorScheme.secondaryContainer)
                     Pill("${story.nodes.size} 节点")
                     if (aiNodes > 0) Pill("AI×$aiNodes", container = MaterialTheme.colorScheme.tertiaryContainer)
                     if (story.characterIds.isNotEmpty())
@@ -141,7 +243,10 @@ private fun StoryCard(story: Story, onEdit: () -> Unit, onPlay: () -> Unit, onDe
                 }
             }
             IconButton(onClick = onPlay) {
-                Icon(Icons.Filled.PlayArrow, "试玩", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Filled.PlayArrow, "游玩", tint = MaterialTheme.colorScheme.primary)
+            }
+            IconButton(onClick = onSaves) {
+                Icon(Icons.Filled.Check, "读取存档", tint = MaterialTheme.colorScheme.primary)
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Filled.Delete, "删除", tint = MaterialTheme.colorScheme.outline)

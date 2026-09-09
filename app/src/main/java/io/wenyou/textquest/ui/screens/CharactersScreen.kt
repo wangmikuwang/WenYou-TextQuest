@@ -1,5 +1,6 @@
 package io.wenyou.textquest.ui.screens
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -23,6 +25,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,9 +45,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.data.model.CharacterData
+import io.wenyou.textquest.data.model.SexualOrientation
 import io.wenyou.textquest.ui.HubScaffold
 import io.wenyou.textquest.ui.R
 import io.wenyou.textquest.ui.common.EmojiBadge
+import io.wenyou.textquest.ui.common.Pill
 import io.wenyou.textquest.ui.common.TonalCard
 import io.wenyou.textquest.ui.theme.avatarColor
 import io.wenyou.textquest.ui.vm.LibraryViewModel
@@ -55,6 +60,7 @@ import io.wenyou.textquest.ui.vm.Vms
 fun CharactersScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
     val vm: LibraryViewModel = viewModel(factory = Vms.factory { LibraryViewModel(it) })
     val characters by vm.characters.collectAsState()
+    val filters by vm.filters.collectAsState()
     var pendingDelete by remember { mutableStateOf<CharacterData?>(null) }
 
     HubScaffold(
@@ -78,6 +84,12 @@ fun CharactersScreen(container: WenYouApp.AppContainer, nav: NavHostController) 
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    item {
+                        OrientationFilterRow(
+                            selected = filters.orientationFilter,
+                            onSelect = { vm.setOrientationFilter(it) }
+                        )
+                    }
                     items(characters, key = { it.id }) { c ->
                         CharacterCard(c, onEdit = { nav.navigate(R.charEdit(c.id)) },
                             onDelete = { pendingDelete = c })
@@ -111,6 +123,27 @@ fun CharactersScreen(container: WenYouApp.AppContainer, nav: NavHostController) 
     }
 }
 
+/** 性取向过滤 Chip 行（全部 + 各取向）。 */
+@Composable
+private fun OrientationFilterRow(
+    selected: SexualOrientation?,
+    onSelect: (SexualOrientation?) -> Unit
+) {
+    val options: List<SexualOrientation?> = listOf(null) + SexualOrientation.entries
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+    ) {
+        options.forEach { opt ->
+            FilterChip(
+                selected = opt == selected,
+                onClick = { onSelect(opt) },
+                label = { Text(opt?.label ?: "全部") }
+            )
+        }
+    }
+}
+
 @Composable
 private fun CharacterCard(c: CharacterData, onEdit: () -> Unit, onDelete: () -> Unit) {
     Card(
@@ -129,6 +162,12 @@ private fun CharacterCard(c: CharacterData, onEdit: () -> Unit, onDelete: () -> 
                 if (c.personality.isNotBlank())
                     Text("性格：${c.personality}", style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2)
+                Spacer(Modifier.padding(top = 6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Pill(c.orientation.label, container = MaterialTheme.colorScheme.secondaryContainer)
+                    if (c.adult) Pill("18+", container = MaterialTheme.colorScheme.tertiaryContainer)
+                    if (c.lgbt) Pill("LGBT", container = MaterialTheme.colorScheme.tertiaryContainer)
+                }
             }
             IconButton(onClick = onEdit) { Icon(Icons.Filled.Edit, "编辑") }
             IconButton(onClick = onDelete) { Icon(Icons.Filled.Delete, "删除", tint = MaterialTheme.colorScheme.outline) }

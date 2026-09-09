@@ -27,7 +27,8 @@
           "队长"
         ],
         "description": "刚合上案卷，眼底压着一整夜的疲惫。"
-      }
+      },
+      "orientation": "straight"
     },
     {
       "greeting": "「报告出来了，你最好先看一眼。」",
@@ -54,7 +55,8 @@
           "法医"
         ],
         "description": "洗净手套上的消毒水气味，才允许自己放松下来。"
-      }
+      },
+      "orientation": "straight"
     },
     {
       "greeting": "「今日打烊……不过你若是来喝一碗，我破例。」",
@@ -82,7 +84,8 @@
           "剑客"
         ],
         "description": "腰间只剩半壶酒，旧伤还在隐隐作痛。"
-      }
+      },
+      "orientation": "straight"
     },
     {
       "greeting": "「又要赊账？进来坐。」",
@@ -110,7 +113,8 @@
           "老板娘"
         ],
         "description": "把账本合得啪啪响，嘴上不饶人，却悄悄往来人碗里多添了块肉。"
-      }
+      },
+      "orientation": "straight"
     },
     {
       "greeting": "「跃迁窗口还有四小时，够你交代后事了。」",
@@ -138,7 +142,8 @@
           "领航员"
         ],
         "description": "盯着星图，把最能全身而退的航线排在最前。"
-      }
+      },
+      "orientation": "straight"
     },
     {
       "greeting": "「你又偷偷改航线了？先说好，我可没带备用伞。」",
@@ -166,7 +171,8 @@
           "工程师"
         ],
         "description": "拆开面板试了三次，眼睛亮得像发现了新星。"
-      }
+      },
+      "orientation": "straight"
     },
     {
       "greeting": "「下班了？我把饭热一下。」",
@@ -193,7 +199,8 @@
           "建筑师"
         ],
         "description": "在图纸上又描了一笔，把关心都算进承重里。"
-      }
+      },
+      "orientation": "straight"
     },
     {
       "greeting": "「今天想吃什么？我来点。」",
@@ -220,7 +227,8 @@
           "插画师"
         ],
         "description": "笔停在一半，肚子先咕噜叫了一声。"
-      }
+      },
+      "orientation": "straight"
     }
   ],
   "version": 1,

@@ -11,6 +11,7 @@ import io.wenyou.textquest.data.model.AppJson
 import io.wenyou.textquest.data.model.CharacterData
 import io.wenyou.textquest.data.model.CharacterMetrics
 import io.wenyou.textquest.data.model.ProviderKind
+import io.wenyou.textquest.data.model.SexualOrientation
 import io.wenyou.textquest.data.repo.LocalLibrary
 import io.wenyou.textquest.data.repo.SettingsStore
 import io.wenyou.textquest.ui.theme.ThemeMode
@@ -80,6 +81,8 @@ class CharacterEditorViewModel(
     }
     fun setInitialFlagsText(v: String) = _ui.update { it.copy(flagsText = v) }
     fun setInitialDesc(v: String) = update { it.copy(initial = it.initial.copy(description = v)) }
+
+    fun setOrientation(v: SexualOrientation) = update { it.copy(orientation = v) }
 
     fun save() {
         val uiState = _ui.value

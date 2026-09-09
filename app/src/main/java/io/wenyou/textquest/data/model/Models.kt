@@ -43,6 +43,32 @@ data class ApiProfile(
 // 角色
 // ---------------------------------------------------------------------------
 
+/** 角色性取向（用于角色库分类与「性取向」检索；内置角色已按题材预设，可在编辑器修改）。 */
+@Serializable
+enum class SexualOrientation(val label: String) {
+    @SerialName("straight") STRAIGHT("异性恋"),
+    @SerialName("gay") GAY("男同性恋"),
+    @SerialName("lesbian") LESBIAN("女同性恋"),
+    @SerialName("bi") BI("双性恋"),
+    @SerialName("pan") PAN("泛性恋"),
+    @SerialName("unknown") UNKNOWN("未标注")
+}
+
+/** 剧情内容分类（全年龄 / LGBT / 成人18+）。 */
+@Serializable
+enum class ContentClass(val label: String) {
+    @SerialName("all_age") ALL_AGE("全年龄"),
+    @SerialName("lgbt") LGBT("LGBT"),
+    @SerialName("adult") ADULT("18+")
+}
+
+/** 由剧情既有内容开关推导其内容分类（成人优先，其次 LGBT，否则全年龄）。 */
+fun storyContentClass(story: Story): ContentClass = when {
+    story.adult -> ContentClass.ADULT
+    story.lgbt -> ContentClass.LGBT
+    else -> ContentClass.ALL_AGE
+}
+
 /**
  * 角色卡：性格/说话方式/背景会注入到 AI 人设与叙事系统提示中，
  * 在作者自编节点中则由 [speakerId] 决定气泡归属（纯离线也能用）。
@@ -65,6 +91,8 @@ data class CharacterData(
     val bottomPrompt: String = "",
     /** 初始状态（开局新会话沿用；可在角色编辑器调整，对局中由 AI 导演实时更新）。 */
     val initial: CharacterState = CharacterState(),
+    /** 性取向（角色库分类用）。 */
+    val orientation: SexualOrientation = SexualOrientation.UNKNOWN,
     /** 是否为 LGBT 向内容（供「内容开关」过滤显示）。 */
     val lgbt: Boolean = false,
     /** 是否为成人向内容。 */
