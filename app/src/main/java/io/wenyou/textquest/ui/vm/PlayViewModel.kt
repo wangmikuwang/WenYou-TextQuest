@@ -271,7 +271,7 @@ class PlayViewModel(
         _ui.update { it.copy(stage = PlayStage.AI_WORKING, aiDelta = "", pendingAiChoices = emptyList(), providerMissing = false) }
         viewModelScope.launch {
             try {
-                val scene = director.generateScene(profile, story, node, ui.characters, s) { delta ->
+                val scene = director.generateScene(profile, story, node, ui.characters, s, adult = story.adult) { delta ->
                     _ui.update { it.copy(aiDelta = it.aiDelta + delta) }
                 }
                 finishAiScene(scene.text, scene.choices)
@@ -339,7 +339,7 @@ class PlayViewModel(
         val s = session ?: return
         viewModelScope.launch {
             try {
-                val scene = director.directorTurn(profile, story, ui.characters, s, trimmed) { delta ->
+                val scene = director.directorTurn(profile, story, ui.characters, s, trimmed, adult = story.adult) { delta ->
                     _ui.update { it.copy(aiDelta = it.aiDelta + delta) }
                 }
                 if (scene.text.isNotBlank()) {

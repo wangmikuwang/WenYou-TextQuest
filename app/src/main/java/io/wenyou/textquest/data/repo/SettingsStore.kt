@@ -12,7 +12,8 @@ data class UiPrefs(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
     val defaultProviderId: String? = null,
-    val showLgbt: Boolean = true
+    val showLgbt: Boolean = true,
+    val adultContent: Boolean = true
 )
 
 /** 轻量应用设置（SharedPreferences），变更同步发布到 [state] 供主题实时响应。 */
@@ -28,7 +29,8 @@ class SettingsStore(context: Context) {
         themeMode = ThemeMode.valueOf(prefs.getString(KEY_THEME, ThemeMode.SYSTEM.name) ?: ThemeMode.SYSTEM.name),
         dynamicColor = prefs.getBoolean(KEY_DYNAMIC, true),
         defaultProviderId = prefs.getString(KEY_PROVIDER, null),
-        showLgbt = prefs.getBoolean(KEY_SHOW_LGBT, true)
+        showLgbt = prefs.getBoolean(KEY_SHOW_LGBT, true),
+        adultContent = prefs.getBoolean(KEY_ADULT, true)
     )
 
     fun setThemeMode(mode: ThemeMode) {
@@ -49,6 +51,11 @@ class SettingsStore(context: Context) {
     fun setShowLgbt(on: Boolean) {
         prefs.edit().putBoolean(KEY_SHOW_LGBT, on).apply()
         _state.value = _state.value.copy(showLgbt = on)
+    }
+
+    fun setAdultContent(on: Boolean) {
+        prefs.edit().putBoolean(KEY_ADULT, on).apply()
+        _state.value = _state.value.copy(adultContent = on)
     }
 
     // ---- 兼容旧读取点 ----
@@ -81,6 +88,7 @@ class SettingsStore(context: Context) {
         const val KEY_PRESETS = "presets_applied_v1"
         const val KEY_CRASH_DIR = "crash_dir_uri"
         const val KEY_SHOW_LGBT = "show_lgbt"
+        const val KEY_ADULT = "adult_content"
         const val KEY_COMPACT = "compact_cards"
     }
 }

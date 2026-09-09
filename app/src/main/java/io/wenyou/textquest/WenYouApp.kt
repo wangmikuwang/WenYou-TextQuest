@@ -38,7 +38,7 @@ class WenYouApp : Application() {
         installCrashLogger()
         appScope.launch {
             when {
-                // 文游α：内置示例 + 非LGBT常备；LGBT 预设视「内容开关」而并入
+                // 文游α：内置示例 + 非LGBT常备；LGBT 预设视「内容开关」而并入；成人向预设始终并入
                 BuildConfig.BUILTIN_CONTENT -> {
                     seedSamplesIfNeeded()
                     applyPresetAssets(listOf(
@@ -51,6 +51,7 @@ class WenYouApp : Application() {
                             "presets/wenyou-extended-presets.json"
                         ), markLgbt = true)
                     }
+                    applyPresetAssets(listOf("presets/wenyou-adult-presets.json"), markAdult = true)
                 }
                 // 文游β：仅内置“非 LGBT”剧情与角色
                 BuildConfig.BARE_CONTENT -> {
@@ -106,18 +107,18 @@ class WenYouApp : Application() {
      * 把 assets/presets/ 下的题材预设包（BL/伪百合/男娘/第四爱/娱乐圈ABO 等）
      * 自动并入资料库：按 id 去重、只补不覆盖。升级安装也能补到新版本新增的预设。
      */
-    /** 逐个资源去重合并（按 id 只补不覆盖）。markLgbt=true 时给并入项打上 lgbt 标记。 */
-    private suspend fun applyPresetAssets(presetFiles: List<String>, markLgbt: Boolean) {
+    /** 逐个资源去重合并（按 id 只补不覆盖）。markLgbt/markAdult 用于打标签。 */
+    private suspend fun applyPresetAssets(presetFiles: List<String>, markLgbt: Boolean = false, markAdult: Boolean = false) {
         for (name in presetFiles) {
             try {
-                applyPresetAsset(name, markLgbt)
+                applyPresetAsset(name, markLgbt, markAdult)
             } catch (_: Throwable) {
                 // 单个资源失败不影响其它资源与主流程，下次启动重试
             }
         }
     }
 
-    private suspend fun applyPresetAsset(name: String, markLgbt: Boolean) {
+    private suspend fun applyPresetAsset(name: String, markLgbt: Boolean, markAdult: Boolean) {
         val text = assets.open(name)
             .bufferedReader(Charsets.UTF_8)
             .use { it.readText() }
@@ -125,14 +126,14 @@ class WenYouApp : Application() {
         val charIds = container.library.characters.value.mapTo(mutableSetOf()) { it.id }
         for (c in bundle.characters) {
             if (charIds.add(c.id)) {
-                val cc = if (markLgbt && !c.lgbt) c.copy(lgbt = true) else c
+                val cc = if (markLgbt || markAdult) c.copy(lgbt = c.lgbt || markLgbt, adult = c.adult || markAdult) else c
                 container.library.upsertCharacter(cc)
             }
         }
         val storyIds = container.library.stories.value.mapTo(mutableSetOf()) { it.id }
         for (s in bundle.stories) {
             if (storyIds.add(s.id)) {
-                val ss = if (markLgbt && !s.lgbt) s.copy(lgbt = true) else s
+                val ss = if (markLgbt || markAdult) s.copy(lgbt = s.lgbt || markLgbt, adult = s.adult || markAdult) else s
                 container.library.upsertStory(ss)
             }
         }

@@ -206,6 +206,20 @@ fun SettingsScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
                 }
             }
 
+            item { SectionHeader("成人内容") }
+            item {
+                TonalCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("显示成人（18+）内容", style = MaterialTheme.typography.labelLarge)
+                            Text("开启后显示成人向预设，并允许 AI 描写成年、自愿的亲密/性爱场景；关闭后隐藏并保持非露骨。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        Switch(checked = ui.adultContent, onCheckedChange = { vm.setAdultContent(it) })
+                    }
+                }
+            }
             item { SectionHeader("数据备份") }
             item {
                 TonalCard {

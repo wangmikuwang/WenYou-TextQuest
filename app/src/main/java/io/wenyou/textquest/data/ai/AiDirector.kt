@@ -69,6 +69,10 @@ class AiDirector(private val client: ChatClient) {
         }
     }
 
+    /** 尺度说明：成人向允许亲密/性爱（成年、自愿），否则浪漫含蓄。 */
+    private fun scaleNote(adult: Boolean): String =
+        if (adult) "\n【本作为18+成年向】允许自然描写亲密与性爱场景，保持成年、自愿、可随时停下；不写强制/未成年。\n"
+        else "\n【内容尺度】保持浪漫含蓄、非露骨，亲密点到即止。\n"
     /** 角色当前状态（好恶/身体/穿着/氛围值等）注入上下文。 */
     private fun charStatesSnapshot(story: Story, characters: List<CharacterData>, state: SessionState): String = buildString {
         val bound = characters.filter { it.id in story.characterIds }
@@ -85,7 +89,7 @@ class AiDirector(private val client: ChatClient) {
             if (st.description.isNotBlank()) append("　穿着/外观：${st.description}")
             append("\n")
         }
-        append("（请让角色言行贴合以上状态；氛围数值只影响语气与暧昧尺度，不写露骨内容。）\n")
+        append("（请让角色言行贴合以上状态。）\n")
     }
 
     /** 取最近若干条剧情（角色台词/旁白/玩家选择），组成用户消息正文。 */
@@ -117,6 +121,7 @@ class AiDirector(private val client: ChatClient) {
         node: StoryNode,
         characters: List<CharacterData>,
         state: SessionState,
+        adult: Boolean = false,
         onDelta: (String) -> Unit = {}
     ): AiScene {
         val system = buildString {
@@ -134,7 +139,7 @@ class AiDirector(private val client: ChatClient) {
                 append("默认每个选项都让场景自然延续。\n")
             }
         }
-        val user = contextTail(story, state) + stateSnapshot(state) + charStatesSnapshot(story, characters, state)
+        val user = contextTail(story, state) + stateSnapshot(state) + charStatesSnapshot(story, characters, state) + scaleNote(adult)
         val raw = client.streamText(profile, system, user, ChatOptions(story.ai.temperature, story.ai.maxTokens), onDelta)
         return parseScene(raw)
     }
@@ -147,6 +152,7 @@ class AiDirector(private val client: ChatClient) {
         characters: List<CharacterData>,
         state: SessionState,
         playerText: String,
+        adult: Boolean = false,
         onDelta: (String) -> Unit = {}
     ): AiScene {
         val system = buildString {
@@ -163,7 +169,7 @@ class AiDirector(private val client: ChatClient) {
             append("输出必须是一个 JSON 对象：{\"text\":\"本次推进的正文（含你扮演角色的台词）\",\"choices\":[{\"text\":\"玩家可能的下一步选项（2-4 个，给灵感用）\"}]}。\n")
             append("若玩家表达了收尾意愿，请自然地给出结局感并让 choices 为空数组。\n")
         }
-        val user = contextTail(story, state, playerText) + stateSnapshot(state) + charStatesSnapshot(story, characters, state)
+        val user = contextTail(story, state, playerText) + stateSnapshot(state) + charStatesSnapshot(story, characters, state) + scaleNote(adult)
         val raw = client.streamText(profile, system, user, ChatOptions(story.ai.temperature, story.ai.maxTokens), onDelta)
         return parseScene(raw)
     }
