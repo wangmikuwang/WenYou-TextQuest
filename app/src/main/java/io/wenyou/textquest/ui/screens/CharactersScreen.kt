@@ -80,7 +80,9 @@ fun CharactersScreen(container: WenYouApp.AppContainer, nav: NavHostController) 
     val context = LocalContext.current
     val albumPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
-            val text = context.contentResolver.openInputStream(uri)?.use { GifShareReader.read(it) }
+            val text = try {
+                context.contentResolver.openInputStream(uri)?.use { GifShareReader.read(it) }
+            } catch (_: Throwable) { null }
             if (text.isNullOrBlank()) {
                 android.widget.Toast.makeText(context, "未识别到二维码", android.widget.Toast.LENGTH_SHORT).show()
             } else {

@@ -125,7 +125,9 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
     // 从相册选一张含二维码的图片/GIF 识别
     val albumPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
-            val text = context.contentResolver.openInputStream(uri)?.use { GifShareReader.read(it) }
+            val text = try {
+                context.contentResolver.openInputStream(uri)?.use { GifShareReader.read(it) }
+            } catch (_: Throwable) { null }
             if (text.isNullOrBlank()) {
                 android.widget.Toast.makeText(context, "未识别到二维码", android.widget.Toast.LENGTH_SHORT).show()
             } else {
@@ -470,18 +472,22 @@ fun ShareQrDialog(title: String, code: String, onDismiss: () -> Unit) {
                         val frames = mutableListOf<android.graphics.Bitmap>()
                         chunks.forEach { ch ->
                             val qr = QrCode.encode(ch, 480) ?: return@forEach
-                            for (g in 1..4) frames += PairingFrame.render(qr, g / 4f, 600)
+                            for (g in 1..3) frames += PairingFrame.render(qr, g / 3f, 400)
                         }
-                        GifEncoder.encode(frames, 420)
+                        GifEncoder.encode(frames, 500)
                     }
                     TextButton(onClick = {
-                        if (gif.isNotEmpty()) {
-                            val loc = QrCode.saveGifToGallery(context, gif, title)
-                            android.widget.Toast.makeText(context,
-                                if (loc != null) "已保存动图到 $loc" else "保存失败",
-                                android.widget.Toast.LENGTH_SHORT).show()
-                        } else {
-                            android.widget.Toast.makeText(context, "动图生成失败", android.widget.Toast.LENGTH_SHORT).show()
+                        try {
+                            if (gif.isNotEmpty()) {
+                                val loc = QrCode.saveGifToGallery(context, gif, title)
+                                android.widget.Toast.makeText(context,
+                                    if (loc != null) "已保存动图到 $loc" else "保存失败",
+                                    android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                android.widget.Toast.makeText(context, "动图生成失败", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        } catch (t: Throwable) {
+                            android.widget.Toast.makeText(context, "动图生成失败：${t.message}", android.widget.Toast.LENGTH_SHORT).show()
                         }
                     }) { Text("保存 GIF") }
                 } else if (single != null) {

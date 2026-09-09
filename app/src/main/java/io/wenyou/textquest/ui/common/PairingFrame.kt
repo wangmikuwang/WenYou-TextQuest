@@ -46,7 +46,7 @@ object PairingFrame {
         val src = Rect(0, 0, qr.width, qr.height)
         val dst = Rect(half.toInt() + pad.toInt(), half.toInt() + pad.toInt(),
             half.toInt() + pad.toInt() + side, half.toInt() + pad.toInt() + side)
-        val qrPaint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
+        val qrPaint = Paint(Paint.ANTI_ALIAS_FLAG)
         c.drawBitmap(qr, src, dst, qrPaint)
 
         return out
