@@ -130,7 +130,7 @@ class StoryEditorViewModel(
     }
 
     fun removeNode(id: String) {
-        if (_ui.value.story?.nodes?.size ?: 0 <= 1) {
+        if ((_ui.value.story?.nodes?.size ?: 0) <= 1) {
             _ui.update { it.copy(message = "至少保留一个节点") }
             return
         }

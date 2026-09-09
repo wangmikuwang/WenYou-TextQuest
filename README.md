@@ -6,7 +6,10 @@
 
 - 节点式分支引擎：节点分为叙述（`NARRATION`）、AI 生成场景（`AI`）、结局（`ENDING`）三类。支持节点进入效果、选项显示条件与选择效果、数值变量、场景标记、掷骰，以及 `${变量}` 文本插值，实现在 `data/engine/GameEngine.kt`。
 - 角色卡：以名字、Emoji、性格、说话风格、背景、台词示范等字段构成角色人设，编辑后注入 AI 系统提示；对局中可维护角色的 0..100 状态值与标记，定义见 `data/model/CharacterMetrics.kt`。
+- 底层基调（不可动摇规则）：独立、可复用实体，可新建多条；每个角色可多选要执行的底层基调。AI 注入时先执行底层基调、再按人设扮演，冲突时以此层为准，见 `data/model/Models.kt` 的 `BottomRule` 与 `AiDirector.personaCard`。
 - 多品牌 AI 接入：OpenAI 兼容协议覆盖 DeepSeek、Kimi、GLM、Qwen、豆包、OpenRouter、硅基流动、小米 MiMo、Ollama 等服务；Anthropic 与 Gemini 分别走 Messages API 与 `streamGenerateContent` 原生协议。统一为 SSE 流式输出，提供连接测试与模型列表拉取。
+- AI 正文清洗：生成结果统一剥除 markdown（加粗/列表/标题/斜体/引用/代码块）、剔除导演式思考泄漏行，思考内容独立展示不混入角色回复。DeepSeek 推理模型（`deepseek-reasoner`）自动免 `temperature`、放宽超时与 `max_tokens`，并兼容 `reasoning_content`/`reasoning` 思考字段。
+- 分享与导入：剧情与角色可生成分享码（WY2 deflate 压缩文本）或二维码（单张优先，过大自动拆成多片 QR Book 轮播）；支持粘贴分享码、相机扫码、相册识别导入，按 id 只补不覆盖。
 - 对局存档：支持随时存档、主页续玩，以及整包 JSON 导出 / 导入。
 
 ## 玩法模式
@@ -37,7 +40,7 @@ flowchart TB
     end
 
     subgraph EXT["外部"]
-        F[JSON 文件 · saves/stories/characters/providers]
+        F[JSON 文件 · saves/stories/characters/providers/bottom_rules]
         API[第三方 LLM API]
     end
 
@@ -74,7 +77,7 @@ stateDiagram-v2
 
 ## AI 生成链路
 
-每次生成先拼提示词（人设卡、最近剧情、变量与角色状态快照），再以 SSE 逐帧接收文本增量驱动打字机，结束后把完整输出解析为结构化结果：
+每次生成先拼提示词（人设卡、最近剧情、变量与角色状态快照、底层基调），再以 SSE 逐帧接收文本增量驱动打字机，结束后把完整输出解析为结构化结果并做正文清洗（剥 markdown、剔思考泄漏）：
 
 ```mermaid
 sequenceDiagram
@@ -103,7 +106,7 @@ sequenceDiagram
 
 | 协议 | 聊天端点 | 增量字段 | 模型列表端点 |
 | --- | --- | --- | --- |
-| OpenAI 兼容 | `POST {base}/chat/completions` | `choices[0].delta.content`，推理模型回退 `reasoning_content` | `GET {base}/models`，取 `data[].id` |
+| OpenAI 兼容 | `POST {base}/chat/completions` | `choices[0].delta.content`，推理模型回退 `reasoning_content` / `reasoning` | `GET {base}/models`，取 `data[].id` |
 | Anthropic | `POST {base}/v1/messages` | `content_block_delta` 的 `delta.text` | `GET {base}/v1/models`，取 `data[].id` |
 | Gemini | `POST {base}/models/{model}:streamGenerateContent?alt=sse` | `candidates[0].content.parts[].text` | `GET {base}/models?pageSize=1000`，取 `models[].name`（去 `models/` 前缀） |
 
@@ -132,20 +135,21 @@ sequenceDiagram
 
 ## 数据与预设
 
-运行时数据分四个 JSON 文件存于应用私有目录，字段均对手工编辑友好：
+运行时数据分五个 JSON 文件存于应用私有目录，字段均对手工编辑友好：
 
 | 文件 | 内容 | 维护入口 |
 | --- | --- | --- |
 | `providers.json` | AI 服务档案（品牌、baseUrl、Key、模型） | 「AI 服务」页 |
-| `characters.json` | 角色卡 | 「角色」页 |
+| `characters.json` | 角色卡（含底层基调多选 `bottomRuleIds`） | 「角色」页 |
 | `stories.json` | 剧情节点图与会话设置 | 「剧情」编辑器 |
 | `saves.json` | 存档（含日志与角色状态快照） | 对局内 / 主页 |
+| `bottom_rules.json` | 底层基调（不可动摇规则）实体 | 设置 → 底层基调 |
 
 内置题材预设以 `assets/presets/*.json` 提供，启动时检查合并状态：尚未合并过的包按 id 并入资料库，规则为只补不覆盖；已合并的文件记录在 `SettingsStore` 的 `preset_files_applied_v2` 中，避免重复导入。`presets/` 目录下的 PowerShell 脚本可重新生成这些资源。
 
 ## 构建
 
-编译环境要求：`compileSdk 34`、`minSdk 26`、JDK 17。仓库自带 Gradle wrapper（8.9），可直接用 Android Studio（Ladybug 或更新）打开运行。
+编译环境要求：`compileSdk 35`、`minSdk 26`、`targetSdk 34`、JDK 17。仓库自带 Gradle wrapper（8.9），可直接用 Android Studio（Ladybug 或更新）打开运行。
 
 命令行构建示例：
 
@@ -166,13 +170,14 @@ sequenceDiagram
 
 ```text
 app/src/main/java/io/wenyou/textquest/
-├── data/model/    持久化模型，JSON 序列化字段对手工编辑友好
-├── data/engine/   分支引擎：条件、效果、掷骰、模板插值，纯逻辑无 IO
-├── data/ai/       AI 场景与导演的提示词组装、模型 JSON 输出解析
-├── data/llm/      多协议流式客户端与品牌预设目录
-├── data/repo/     本地 JSON 资料库与 SharedPreferences 设置
-├── data/sample/   首次启动植入的示例角色与剧情
-└── ui/            Compose 页面、ViewModel、主题
+├── CrashLog.kt        崩溃日志多路径落盘（内部 / 外部 / SAF Documents）
+├── data/model/        持久化模型，JSON 序列化字段对手工编辑友好
+├── data/engine/       分支引擎：条件、效果、掷骰、模板插值，纯逻辑无 IO
+├── data/ai/           AI 场景与导演的提示词组装、模型 JSON 输出解析与正文清洗
+├── data/llm/          多协议流式客户端与品牌预设目录
+├── data/repo/         本地 JSON 资料库与 SharedPreferences 设置
+├── data/sample/       首次启动植入的示例角色与剧情
+└── ui/                Compose 页面、ViewModel、主题
 ```
 
 ## 贡献者
@@ -185,4 +190,6 @@ app/src/main/java/io/wenyou/textquest/
 - 未引入 Hilt 与 Room：依赖注入在 `WenYouApp` 中手动完成，持久化直接读写 JSON 文件。该方案减少了框架与迁移成本，但所有写入需要由调用方保证串行；备份即复制文件。
 - AI 上下文取最近 `historyWindow` 条日志，超出部分自动截断，以避免提示词超长。
 - 流式生成结束前不写入对局日志，因此生成过程中无法保存“半句”内容；整段结束后存档即为一致状态。
+- AI 生成正文统一清洗（剥 markdown、剔思考泄漏），仅作用于 AI 生成，作者手写节点文本保留原样。
+- 底层基调支持独立实体与角色内嵌单条两种来源，均注入人设最底；角色删除某条引用或删除规则时自动摘除关联，避免悬空 id。
 - 用户已删除的内置内容不会在后续启动时被自动写回。
