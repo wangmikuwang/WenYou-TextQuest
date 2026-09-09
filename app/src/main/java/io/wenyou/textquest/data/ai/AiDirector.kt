@@ -20,7 +20,8 @@ import kotlinx.serialization.json.jsonPrimitive
 @Serializable
 data class AiScene(
     val text: String = "",
-    val choices: List<AiChoice> = emptyList()
+    val choices: List<AiChoice> = emptyList(),
+    val reasoning: String = ""
 )
 
 @Serializable
@@ -124,7 +125,8 @@ class AiDirector(private val client: ChatClient) {
         characters: List<CharacterData>,
         state: SessionState,
         adult: Boolean = false,
-        onDelta: (String) -> Unit = {}
+        onDelta: (String) -> Unit = {},
+        onReasoning: (String) -> Unit = {}
     ): AiScene {
         val system = buildString {
             append("你是一名中文文字冒险游戏的「场景生成器」，只负责根据给定素材续写当前场景。\n")
@@ -142,8 +144,8 @@ class AiDirector(private val client: ChatClient) {
             }
         }
         val user = contextTail(story, state) + stateSnapshot(state) + charStatesSnapshot(story, characters, state) + scaleNote(adult)
-        val raw = client.streamText(profile, system, user, ChatOptions(story.ai.temperature, story.ai.maxTokens), onDelta)
-        return parseScene(raw)
+        val result = client.streamText(profile, system, user, ChatOptions(story.ai.temperature, story.ai.maxTokens), onDelta, onReasoning)
+        return parseScene(result.content).copy(reasoning = result.reasoning)
     }
 
     // ---------------- AI 导演模式（自由对话） ----------------
@@ -155,7 +157,8 @@ class AiDirector(private val client: ChatClient) {
         state: SessionState,
         playerText: String,
         adult: Boolean = false,
-        onDelta: (String) -> Unit = {}
+        onDelta: (String) -> Unit = {},
+        onReasoning: (String) -> Unit = {}
     ): AiScene {
         val system = buildString {
             append("你是这款中文文字游戏的「AI 导演/主持人」。你负责：\n")
@@ -172,8 +175,8 @@ class AiDirector(private val client: ChatClient) {
             append("若玩家表达了收尾意愿，请自然地给出结局感并让 choices 为空数组。\n")
         }
         val user = contextTail(story, state, playerText) + stateSnapshot(state) + charStatesSnapshot(story, characters, state) + scaleNote(adult)
-        val raw = client.streamText(profile, system, user, ChatOptions(story.ai.temperature, story.ai.maxTokens), onDelta)
-        return parseScene(raw)
+        val result = client.streamText(profile, system, user, ChatOptions(story.ai.temperature, story.ai.maxTokens), onDelta, onReasoning)
+        return parseScene(result.content).copy(reasoning = result.reasoning)
     }
 
     /** 测试一条服务是否可用。 */
@@ -183,7 +186,7 @@ class AiDirector(private val client: ChatClient) {
         return client.streamText(
             profile, system, user,
             ChatOptions(temperature = 0.2, maxTokens = 16)
-        ).trim()
+        ).content.trim()
     }
 
     // ---------------- JSON 解析 ----------------

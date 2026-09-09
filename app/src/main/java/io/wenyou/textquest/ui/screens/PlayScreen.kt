@@ -1,6 +1,7 @@
 package io.wenyou.textquest.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -150,6 +151,7 @@ fun PlayScreen(container: WenYouApp.AppContainer, nav: NavHostController, storyI
                 }
                 if (live) {
                     item(key = "live") {
+                        if (ui.aiReasoningDelta.isNotBlank()) ThinkingBlock(ui.aiReasoningDelta)
                         StreamingCard(ui.aiDelta)
                         Spacer(Modifier.height(10.dp))
                     }
@@ -251,7 +253,8 @@ private fun ProviderOption(
 @Composable
 private fun StoryEntry(entry: LogEntry, ui: PlayUi) {
     val text = entry.text
-    if (text.isBlank()) return
+    if (text.isBlank() && entry.reasoning.isBlank()) return
+    if (entry.reasoning.isNotBlank()) ThinkingBlock(entry.reasoning)
     when (entry.kind) {
         EntryKind.NARRATION -> {
             SelectionContainer {
@@ -591,6 +594,39 @@ private fun CharacterStateDrawer(ui: PlayUi) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 思考区（默认折叠，点击展开查看 AI 导演思考过程）
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun ThinkingBlock(reasoning: String) {
+    var expanded by remember(reasoning) { mutableStateOf(false) }
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }
+            ) {
+                Text("🧠 思考过程", style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
+                Text(if (expanded) "收起" else "展开",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary)
+            }
+            if (expanded && reasoning.isNotBlank()) {
+                Spacer(Modifier.height(6.dp))
+                Text(reasoning,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth())
             }
         }
     }

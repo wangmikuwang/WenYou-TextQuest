@@ -211,6 +211,7 @@ data class LogEntry(
     val speaker: String = "",
     val speakerId: String = "",
     val text: String,
+    val reasoning: String = "",
     val ts: Long = 0L
 )
 

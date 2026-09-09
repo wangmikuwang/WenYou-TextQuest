@@ -40,6 +40,7 @@ data class PlayUi(
     val visibleChoices: List<ChoiceData> = emptyList(),
     val pendingAiChoices: List<AiChoice> = emptyList(),
     val aiDelta: String = "",
+    val aiReasoningDelta: String = "",
     val aiTargetExit: Boolean = false,
     val stoppedTitle: String = "",
     val stoppedMessage: String = "",
@@ -275,14 +276,15 @@ class PlayViewModel(
         }
         // 已有生成任务在运行时，不再发起新的并发请求（覆盖快速连点等场景）
         if (aiJob?.isActive == true) return
-        _ui.update { it.copy(stage = PlayStage.AI_WORKING, aiDelta = "", pendingAiChoices = emptyList(), providerMissing = false) }
+        _ui.update { it.copy(stage = PlayStage.AI_WORKING, aiDelta = "", aiReasoningDelta = "", pendingAiChoices = emptyList(), providerMissing = false) }
         launchAiJob { job ->
             try {
-                val scene = director.generateScene(profile, story, node, ui.characters, s, adult = story.adult) { delta ->
-                    _ui.update { it.copy(aiDelta = it.aiDelta + delta) }
-                }
+                val scene = director.generateScene(profile, story, node, ui.characters, s,
+                    adult = story.adult,
+                    onReasoning = { r -> _ui.update { it.copy(aiReasoningDelta = it.aiReasoningDelta + r) } },
+                    onDelta = { delta -> _ui.update { it.copy(aiDelta = it.aiDelta + delta) } })
                 if (job.isActive && aiJob === job) {
-                    finishAiScene(scene.text, scene.choices)
+                    finishAiScene(scene.text, scene.choices, scene.reasoning)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -306,29 +308,29 @@ class PlayViewModel(
         aiJob = job
     }
 
-    private fun finishAiScene(text: String, choices: List<AiChoice>) {
+    private fun finishAiScene(text: String, choices: List<AiChoice>, reasoning: String = "") {
         val ui = _ui.value
         val story = ui.story ?: return
         val node = story.nodes[ui.nodeId]
         if (text.isNotBlank()) {
             if (node?.speakerId?.isNotBlank() == true) {
                 val speaker = ui.characters.firstOrNull { it.id == node.speakerId }?.name ?: "角色"
-                appendEntries(listOf(LogEntry(EntryKind.CHARACTER, speaker = speaker, speakerId = node.speakerId, text = text)))
+                appendEntries(listOf(LogEntry(EntryKind.CHARACTER, speaker = speaker, speakerId = node.speakerId, text = text, reasoning = reasoning)))
             } else {
-                appendEntries(listOf(LogEntry(EntryKind.NARRATION, text = text)))
+                appendEntries(listOf(LogEntry(EntryKind.NARRATION, text = text, reasoning = reasoning)))
             }
         }
         // 只有指向真实存在的其它节点才算有效出口，避免死循环 / 跳到不存在的剧情
         val exit = node?.endTarget?.takeIf { it.isNotBlank() && it != node.id && story.nodes.containsKey(it) }
         if (choices.isEmpty()) {
-            _ui.update { it.copy(stage = PlayStage.AUTHORED, aiDelta = "", pendingAiChoices = emptyList(), visibleChoices = emptyList()) }
+            _ui.update { it.copy(stage = PlayStage.AUTHORED, aiDelta = "", aiReasoningDelta = "", pendingAiChoices = emptyList(), visibleChoices = emptyList()) }
             if (exit != null) {
                 advanceTo(exit)
             } else {
                 _ui.update { it.copy(lastMessage = "AI 没有给出选项——你可以点「继续」让故事延伸。") }
             }
         } else {
-            _ui.update { it.copy(stage = PlayStage.AUTHORED, aiDelta = "", pendingAiChoices = choices, visibleChoices = emptyList()) }
+            _ui.update { it.copy(stage = PlayStage.AUTHORED, aiDelta = "", aiReasoningDelta = "", pendingAiChoices = choices, visibleChoices = emptyList()) }
         }
     }
 
@@ -361,24 +363,25 @@ class PlayViewModel(
         }
         if (_ui.value.stage == PlayStage.AI_WORKING) return
         appendEntries(listOf(LogEntry(EntryKind.CHOICE, speaker = "你", text = trimmed)))
-        _ui.update { it.copy(stage = PlayStage.AI_WORKING, aiDelta = "", pendingAiChoices = emptyList()) }
+        _ui.update { it.copy(stage = PlayStage.AI_WORKING, aiDelta = "", aiReasoningDelta = "", pendingAiChoices = emptyList()) }
         launchAiJob { job ->
             try {
-                val scene = director.directorTurn(profile, story, ui.characters, s, trimmed, adult = story.adult) { delta ->
-                    _ui.update { it.copy(aiDelta = it.aiDelta + delta) }
-                }
+                val scene = director.directorTurn(profile, story, ui.characters, s, trimmed,
+                    adult = story.adult,
+                    onReasoning = { r -> _ui.update { it.copy(aiReasoningDelta = it.aiReasoningDelta + r) } },
+                    onDelta = { delta -> _ui.update { it.copy(aiDelta = it.aiDelta + delta) } })
                 if (job.isActive && aiJob === job) {
                     if (scene.text.isNotBlank()) {
-                        appendEntries(listOf(LogEntry(EntryKind.DM, speaker = "AI 导演", text = scene.text)))
+                        appendEntries(listOf(LogEntry(EntryKind.DM, speaker = "AI 导演", text = scene.text, reasoning = scene.reasoning)))
                     }
-                    _ui.update { it.copy(aiDelta = "", stage = PlayStage.DM_INPUT, pendingAiChoices = scene.choices) }
+                    _ui.update { it.copy(aiDelta = "", aiReasoningDelta = "", stage = PlayStage.DM_INPUT, pendingAiChoices = scene.choices) }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (t: Throwable) {
                 if (job.isActive) {
                     appendEntries(listOf(LogEntry(EntryKind.ERROR, speaker = "系统", text = "AI 导演出错：${AiDirector.errorMessage(t)}")))
-                    _ui.update { it.copy(aiDelta = "", stage = PlayStage.DM_INPUT, pendingAiChoices = emptyList()) }
+                    _ui.update { it.copy(aiDelta = "", aiReasoningDelta = "", stage = PlayStage.DM_INPUT, pendingAiChoices = emptyList()) }
                 }
             }
         }
