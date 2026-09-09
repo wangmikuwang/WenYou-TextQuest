@@ -14,6 +14,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,11 +43,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import io.wenyou.textquest.data.repo.ShareCode
 import io.wenyou.textquest.ui.common.QrCode
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
 
-/** 全屏相机扫码：正方形识别框，识别到二维码后回调文本。 */
+/** 全屏相机扫码：正方形识别框。大分享码分片会自动按序号累积，收齐后回调完整分享码。 */
 @Composable
 fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -61,8 +63,39 @@ fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
     LaunchedEffect(Unit) { if (!granted) permLauncher.launch(Manifest.permission.CAMERA) }
 
     var scanning by remember { mutableStateOf(true) }
-    val done = remember { AtomicBoolean(false) }
+    var status by remember { mutableStateOf("识别中…") }
+    val done = remember { java.util.concurrent.atomic.AtomicBoolean(false) }
+    val collected = remember { ConcurrentHashMap<Int, String>() }
+    val pendingTotal = remember { java.util.concurrent.atomic.AtomicInteger(0) }
+    val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
     val analyzerExecutor = remember { Executors.newSingleThreadExecutor() }
+
+    // 在新线程判定，成功则切回主线程上报
+    fun handleDetected(text: String) {
+        if (done.get()) return
+        val chunk = runCatching { ShareCode.parseChunk(text) }.getOrNull()
+        if (chunk != null) {
+            if (collected.putIfAbsent(chunk.index, chunk.data) == null) {
+                pendingTotal.set(chunk.total)
+            }
+            val total = pendingTotal.get()
+            val got = collected.size
+            if (total > 0 && got >= total) {
+                val assembled = ShareCode.assembleChunks(collected.toMap(), total)
+                if (assembled != null && done.compareAndSet(false, true)) {
+                    scanning = false
+                    mainExecutor.execute { onResult(assembled) }
+                }
+            } else {
+                mainExecutor.execute { status = "已识别 $got/${total.coerceAtLeast(1)}，继续扫描下一张…" }
+            }
+        } else {
+            if (done.compareAndSet(false, true)) {
+                scanning = false
+                mainExecutor.execute { onResult(text.trim()) }
+            }
+        }
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -80,11 +113,20 @@ fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
                     .border(2.dp, Color.White, RoundedCornerShape(12.dp))
             )
             Text(
-                "将二维码对准框内，即自动识别",
+                "将二维码对准框内",
                 color = Color.White,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.align(Alignment.Center).offset(y = frame + 20.dp)
+            )
+            Text(
+                status,
+                color = Color(0xFF8DFFA0),
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 48.dp)
             )
 
             IconButton(onClick = onDismiss, modifier = Modifier.align(Alignment.TopStart).statusBarsPadding()) {
@@ -93,7 +135,7 @@ fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
 
             if (!granted) {
                 Text(
-                    "需要相机权限才能扫码\n点击相机权限弹窗中的「允许」",
+                    "需要相机权限才能扫码\n请在系统弹窗中点击「允许」",
                     color = Color.White,
                     fontSize = 15.sp,
                     textAlign = TextAlign.Center,
@@ -111,30 +153,12 @@ fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
                         }
                         val analysis = ImageAnalysis.Builder()
                             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                            .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                             .build()
                         analysis.setAnalyzer(analyzerExecutor) { image ->
                             try {
-                                val media = image.image
-                                if (media != null) {
-                                    val plane = media.planes[0]
-                                    val w = image.width
-                                    val h = image.height
-                                    val rowStride = plane.rowStride
-                                    val data = ByteArray(w * h)
-                                    val buf = plane.buffer.duplicate()
-                                    for (row in 0 until h) {
-                                        val start = row * rowStride
-                                        if (start + w <= buf.capacity()) {
-                                            buf.position(start)
-                                            buf.get(data, row * w, w)
-                                        }
-                                    }
-                                    val text = QrCode.decodeYuv(data, w, h, image.imageInfo.rotationDegrees)
-                                    if (text != null && done.compareAndSet(false, true)) {
-                                        scanning = false
-                                        onResult(text.trim())
-                                    }
-                                }
+                                val text = QrCode.decode(image.toBitmap())
+                                if (!text.isNullOrBlank()) handleDetected(text)
                             } catch (_: Throwable) {
                                 // 忽略单帧解析异常，继续扫描
                             } finally {
@@ -155,6 +179,8 @@ fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
     }
 
     DisposableEffect(Unit) {
-        onDispose { analyzerExecutor.shutdown() }
+        onDispose {
+            analyzerExecutor.shutdown()
+        }
     }
 }

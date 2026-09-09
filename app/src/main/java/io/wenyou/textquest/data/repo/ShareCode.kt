@@ -44,6 +44,51 @@ object ShareCode {
         }
     }
 
+    // ---- 二维码分片（QR Book）：大分享码拆成多张低密度二维码，便于扫描 ----
+
+    const val QR_CHUNK_PREFIX = "wyq:"
+    private const val CHUNK_CHARS = 420
+
+    data class QrChunk(val index: Int, val total: Int, val data: String)
+
+    /** 把整段分享码拆成若干分片，每片内容为 `wyq:i/N|data`。 */
+    fun qrChunks(code: String): List<String> {
+        if (code.isBlank()) return emptyList()
+        val n = (code.length + CHUNK_CHARS - 1) / CHUNK_CHARS
+        return (0 until n).map { i ->
+            val start = i * CHUNK_CHARS
+            val end = minOf(start + CHUNK_CHARS, code.length)
+            "$QR_CHUNK_PREFIX${i + 1}/$n|" + code.substring(start, end)
+        }
+    }
+
+    /** 解析一个分片；不是分片返回 null。 */
+    fun parseChunk(text: String): QrChunk? {
+        val cleaned = text.trim()
+        if (!cleaned.startsWith(QR_CHUNK_PREFIX)) return null
+        val body = cleaned.removePrefix(QR_CHUNK_PREFIX)
+        val sep = body.indexOf('|')
+        if (sep < 0) return null
+        val parts = body.substring(0, sep).split('/')
+        if (parts.size != 2) return null
+        val idx = parts[0].toIntOrNull() ?: return null
+        val total = parts[1].toIntOrNull() ?: return null
+        val data = body.substring(sep + 1)
+        if (idx < 1 || total < 1 || idx > total || data.isBlank()) return null
+        return QrChunk(idx, total, data)
+    }
+
+    /** 按序号拼接所有分片，得到完整分享码；未收齐返回 null。 */
+    fun assembleChunks(chunks: Map<Int, String>, total: Int): String? {
+        if (chunks.size < total) return null
+        val sb = StringBuilder()
+        for (i in 1..total) {
+            val d = chunks[i] ?: return null
+            sb.append(d)
+        }
+        return sb.toString()
+    }
+
     private fun deflate(bytes: ByteArray): ByteArray {
         val deflater = Deflater(Deflater.BEST_COMPRESSION, true)
         deflater.setInput(bytes)
