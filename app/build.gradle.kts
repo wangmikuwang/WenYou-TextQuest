@@ -20,7 +20,7 @@ val appVersionName: String = "$appVersionMajor.$appVersionMinor.$appVersionPatch
 
 android {
     namespace = "io.wenyou.textquest"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "io.wenyou.textquest"
