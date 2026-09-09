@@ -18,6 +18,15 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
+/** 场景 JSON 解码器：容忍新增/未知字段（跨版本与模型差异更稳）。 */
+private val sceneJson = Json { ignoreUnknownKeys = true }
+
+/** 匹配 JSON 里的 text 字段值（含反转义，用于兜底抽取）。 */
+private val TEXT_FIELD = Regex("\"text\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"")
+
+/** 判断一段文本是否像“JSON 信封”（含顶层 text/choices 键）。 */
+private val JSON_ENVELOPE = Regex("\"\\s*(text|choices)\\s*\"\\s*:")
+
 /** 一次 AI 生成的结果：正文 + 动态选项（选项可能带 [to:节点] 出口标记）。 */
 @Serializable
 data class AiScene(
@@ -222,7 +231,7 @@ class AiDirector(private val client: ChatClient) {
         val json = extractJson(cleaned)
         if (json != null) {
             try {
-                val decoded = Json { ignoreUnknownKeys = true }.decodeFromString(AiScene.serializer(), json)
+                val decoded = sceneJson.decodeFromString(AiScene.serializer(), json)
                 val text = decoded.text.trim()
                 val choices = decoded.choices.mapNotNull { c ->
                     val t = c.text.trim()
@@ -243,15 +252,17 @@ class AiDirector(private val client: ChatClient) {
         // 模型偶尔给出畸形 / 带代码围栏的 JSON：直接从文本里抠出 text 字段
         val fallback = extractTextField(json ?: cleaned)
         if (fallback.isNotBlank()) return AiScene(text = fallback)
-        // 纯文本（无 JSON 结构）：去掉围栏后作为正文；避免把 JSON 原文泄漏给玩家
+        // 纯文本（无 JSON 结构）：去掉围栏后作为正文；仅当真的像 JSON 信封（含 text/choices 键）才视为泄漏丢弃
         val prose = stripJsonFence(cleaned)
-        if (!prose.contains('{')) return AiScene(text = prose.take(2000))
-        return AiScene()
+        if (JSON_ENVELOPE.containsMatchIn(prose)) return AiScene()
+        return AiScene(text = prose.take(2000))
     }
 
-    /** 从任意文本（可能是漏解析的 JSON 原文）里抽取顶层 "text" 字段值并反转义。 */
+    /** 从任意文本（可能是漏解析的 JSON 原文）里抽取顶层 "text" 字段值并反转义；优先取 choices 之前的正文。 */
     private fun extractTextField(text: String): String {
-        val m = Regex("\"text\"\\s*:\\s*\"((?:\\\\.|[^\"\\\\])*)\"").find(text) ?: return ""
+        val choicesIdx = text.indexOf("\"choices\"")
+        val window = if (choicesIdx > 0) text.substring(0, choicesIdx) else text
+        val m = TEXT_FIELD.find(window) ?: TEXT_FIELD.find(text) ?: return ""
         return unescapeJson(m.groupValues[1])
     }
 
@@ -270,7 +281,9 @@ class AiDirector(private val client: ChatClient) {
                     'f' -> { append('\u000C'); i += 2 }
                     'u' -> {
                         if (i + 5 < s.length) {
-                            append(s.substring(i + 2, i + 6).toInt(16).toChar()); i += 6
+                            val ch = runCatching { s.substring(i + 2, i + 6).toInt(16).toChar() }
+                                .getOrDefault('?')
+                            append(ch); i += 6
                         } else { append(c); i++ }
                     }
                     else -> { append(c); i++ }
