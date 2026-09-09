@@ -4,7 +4,13 @@ import android.content.Intent
 import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +31,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -48,6 +55,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -58,6 +66,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -337,7 +347,40 @@ private fun ShareTextDialog(story: Story, code: String, onDismiss: () -> Unit) {
     )
 }
 
-/** 二维码弹窗：大内容拆成多张低密度二维码展示；支持复制文本兜底。 */
+/** 高对比白色圆角卡片里的二维码，观感贴近设备配对页。 */
+@Composable
+private fun QrCard(bitmap: android.graphics.Bitmap, dp: Int, modifier: Modifier = Modifier) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = Color.White,
+        shadowElevation = 3.dp,
+        modifier = modifier
+    ) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = "二维码",
+            modifier = Modifier.padding(10.dp).size(dp.dp)
+        )
+    }
+}
+
+/** 模拟“正在连接”的脉冲提示。 */
+@Composable
+private fun ConnectingIndicator(label: String, modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition()
+    val alpha by transition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(750), RepeatMode.Reverse)
+    )
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(9.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = alpha)))
+        Spacer(Modifier.width(8.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+    }
+}
+
+/** 二维码弹窗：白底大图、连接动画；大内容拆成多张低密度二维码；支持保存全部/复制文本兜底。 */
 @Composable
 private fun ShareQrDialog(story: Story, code: String, onSwitchText: () -> Unit, onDismiss: () -> Unit) {
     val clipboard = LocalClipboardManager.current
@@ -349,17 +392,23 @@ private fun ShareQrDialog(story: Story, code: String, onSwitchText: () -> Unit, 
         title = { Text("二维码 · ${story.title}") },
         text = {
             Column {
+                ConnectingIndicator(
+                    if (chunks.size <= 1) "对方扫码即可连接"
+                    else "已拆成 ${chunks.size} 张，请按顺序展示"
+                )
+                Spacer(Modifier.height(10.dp))
                 if (chunks.size <= 1) {
-                    val qr = remember(code) { QrCode.encode(code, 640) }
-                    Text(
-                        "让对方用手机相机扫码，或回到剧情库「导入码 → 相机扫码 / 相册识别」。",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(Modifier.height(8.dp))
+                    val qr = remember(code) { QrCode.encode(code, 720) }
                     if (qr != null) {
-                        Image(qr.asImageBitmap(), "分享二维码",
-                            modifier = Modifier.align(Alignment.CenterHorizontally).size(240.dp))
+                        QrCard(qr, 280, Modifier.align(Alignment.CenterHorizontally))
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "用手机相机对准上方二维码，或回到「导入码 → 相机扫码 / 相册识别」。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     } else {
                         Text("该剧情较大，一个二维码放不下，可改用「分享码」文本。",
                             style = MaterialTheme.typography.bodyMedium,
@@ -367,23 +416,22 @@ private fun ShareQrDialog(story: Story, code: String, onSwitchText: () -> Unit, 
                     }
                 } else {
                     Text(
-                        "内容较大，已拆成 ${chunks.size} 张低密度二维码（更易识别）。请让朋友按顺序依次扫描，导入端会自动拼接。",
+                        "内容较大，已拆成 ${chunks.size} 张低密度二维码，更易识别。让朋友按顺序依次扫描，导入端会自动拼接。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(Modifier.height(8.dp))
-                    Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                    Column(Modifier.heightIn(max = 340.dp).verticalScroll(rememberScrollState())) {
                         chunks.forEachIndexed { idx, ch ->
-                            val qr = remember(ch) { QrCode.encode(ch, 480) }
+                            val qr = remember(ch) { QrCode.encode(ch, 560) }
                             Text(
                                 "第 ${idx + 1}/${chunks.size} 张",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp)
+                                modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp)
                             )
                             if (qr != null) {
-                                Image(qr.asImageBitmap(), "第${idx + 1}张二维码",
-                                    modifier = Modifier.align(Alignment.CenterHorizontally).size(200.dp).padding(top = 4.dp))
+                                QrCard(qr, 200, Modifier.align(Alignment.CenterHorizontally))
                             }
                         }
                     }
@@ -392,7 +440,9 @@ private fun ShareQrDialog(story: Story, code: String, onSwitchText: () -> Unit, 
                 Text(
                     if (copied) "已复制分享码文本" else "也可点「复制文本」手动粘贴。",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center
                 )
             }
         },
@@ -413,7 +463,7 @@ private fun ShareQrDialog(story: Story, code: String, onSwitchText: () -> Unit, 
                         android.widget.Toast.makeText(context, "已保存 $saved/${chunks.size} 张二维码", android.widget.Toast.LENGTH_SHORT).show()
                     }) { Text("保存全部") }
                 } else {
-                    val singleQr = remember(code) { QrCode.encode(code, 640) }
+                    val singleQr = remember(code) { QrCode.encode(code, 720) }
                     if (singleQr != null) {
                         TextButton(onClick = {
                             val loc = QrCode.saveToGallery(context, singleQr, story.title)
