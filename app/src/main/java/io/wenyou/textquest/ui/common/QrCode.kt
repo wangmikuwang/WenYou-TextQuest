@@ -7,10 +7,15 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import com.google.zxing.BarcodeFormat
+import com.google.zxing.BinaryBitmap
+import com.google.zxing.DecodeHintType
+import com.google.zxing.MultiFormatReader
+import com.google.zxing.RGBLuminanceSource
+import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeWriter
 import java.io.File
 
-/** 把一段文本编码成二维码位图，并支持保存到本地（相册/应用图片目录）。 */
+/** 把一段文本编码成二维码位图，支持保存到本地，以及从位图识别二维码文本。 */
 object QrCode {
     fun encode(content: String, size: Int = 640): Bitmap? {
         if (content.isBlank()) return null
@@ -23,6 +28,26 @@ object QrCode {
                 }
             }
             bmp
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    /** 从位图中识别二维码文本（识别不到返回 null）。 */
+    fun decode(bitmap: Bitmap): String? {
+        return try {
+            val w = bitmap.width
+            val h = bitmap.height
+            val pixels = IntArray(w * h)
+            bitmap.getPixels(pixels, 0, w, 0, 0, w, h)
+            val source = RGBLuminanceSource(w, h, pixels)
+            val bmp = BinaryBitmap(HybridBinarizer(source))
+            val hints: Map<DecodeHintType, Any> = mapOf(
+                DecodeHintType.POSSIBLE_FORMATS to listOf(BarcodeFormat.QR_CODE),
+                DecodeHintType.CHARACTER_SET to "UTF-8",
+                DecodeHintType.TRY_HARDER to true
+            )
+            MultiFormatReader().decode(bmp, hints).text
         } catch (_: Throwable) {
             null
         }

@@ -1,7 +1,9 @@
 package io.wenyou.textquest.ui.screens
 
 import android.content.Intent
+import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -106,6 +108,20 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
         if (!scanned.isNullOrBlank()) {
             vm.importShareCode(scanned) { msg ->
                 android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    // 从相册选一张含二维码的图片识别
+    val albumPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            val bmp = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+            val text = bmp?.let { QrCode.decode(it) }
+            if (text.isNullOrBlank()) {
+                android.widget.Toast.makeText(context, "未识别到二维码", android.widget.Toast.LENGTH_SHORT).show()
+            } else {
+                vm.importShareCode(text) { msg ->
+                    android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -242,6 +258,7 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
                         .setOrientationLocked(false)
                 )
             },
+            onAlbum = { importPicker = false; albumPicker.launch("image/*") },
             onDismiss = { importPicker = false }
         )
     }
@@ -387,17 +404,18 @@ private fun ShareQrDialog(story: Story, code: String, onSwitchText: () -> Unit, 
     )
 }
 
-/** 导入方式选择：粘贴分享码 or 扫码识别。 */
+/** 导入方式选择：粘贴分享码 / 相机扫码 / 相册图片识别。 */
 @Composable
-private fun ImportPickDialog(onText: () -> Unit, onScan: () -> Unit, onDismiss: () -> Unit) {
+private fun ImportPickDialog(onText: () -> Unit, onScan: () -> Unit, onAlbum: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("导入分享码") },
-        text = { Text("选择导入方式：粘贴「分享码」文本，或直接「扫码」识别二维码。") },
+        text = { Text("选择导入方式：粘贴「分享码」文本，或从二维码识别（相机扫码 / 相册选图）。") },
         confirmButton = {
             Row {
                 TextButton(onClick = onText) { Text("粘贴分享码") }
-                TextButton(onClick = onScan) { Text("扫码识别") }
+                TextButton(onClick = onScan) { Text("相机扫码") }
+                TextButton(onClick = onAlbum) { Text("相册识别") }
                 TextButton(onClick = onDismiss) { Text("取消") }
             }
         }
