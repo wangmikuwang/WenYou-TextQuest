@@ -93,15 +93,29 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
     val filters by vm.filters.collectAsState()
     var pendingDelete by remember { mutableStateOf<Story?>(null) }
     var managesSaves by remember { mutableStateOf<Story?>(null) }
-    var sharingStory by remember { mutableStateOf<Story?>(null) }
-    var importDialog by remember { mutableStateOf(false) }
+    // 分享：先选「分享码 or 二维码」，再进对应界面
+    var sharePicker by remember { mutableStateOf<Story?>(null) }
+    var shareCodeStory by remember { mutableStateOf<Story?>(null) }
+    var shareQrStory by remember { mutableStateOf<Story?>(null) }
+    // 导入：先选「粘贴分享码 or 扫码识别」
+    var importPicker by remember { mutableStateOf(false) }
+    var importText by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { res ->
+        val scanned = res.contents?.trim()
+        if (!scanned.isNullOrBlank()) {
+            vm.importShareCode(scanned) { msg ->
+                android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
 
     HubScaffold(
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text("剧情库") },
                 actions = {
-                    TextButton(onClick = { importDialog = true }) { Text("导入码") }
+                    TextButton(onClick = { importPicker = true }) { Text("导入码") }
                 }
             )
         },
@@ -148,7 +162,7 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
                             onEdit = { nav.navigate(R.storyEdit(story.id)) },
                             onPlay = { nav.navigate(R.play(story.id)) },
                             onSaves = { managesSaves = story },
-                            onShare = { sharingStory = story },
+                            onShare = { sharePicker = story },
                             onDelete = { pendingDelete = story })
                     }
                 }
@@ -189,25 +203,76 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
         )
     }
 
-    sharingStory?.let { story ->
-        ShareCodeDialog(
+    sharePicker?.let { story ->
+        SharePickDialog(
             story = story,
-            code = vm.shareCodeFor(story.id),
-            onDismiss = { sharingStory = null }
+            onCode = { shareCodeStory = story; sharePicker = null },
+            onQr = { shareQrStory = story; sharePicker = null },
+            onDismiss = { sharePicker = null }
         )
     }
 
-    if (importDialog) {
-        ImportCodeDialog(
-            onDismiss = { importDialog = false },
+    shareCodeStory?.let { story ->
+        ShareTextDialog(
+            story = story,
+            code = vm.shareCodeFor(story.id),
+            onDismiss = { shareCodeStory = null }
+        )
+    }
+
+    shareQrStory?.let { story ->
+        ShareQrDialog(
+            story = story,
+            code = vm.shareCodeFor(story.id),
+            onDismiss = { shareQrStory = null }
+        )
+    }
+
+    if (importPicker) {
+        ImportPickDialog(
+            onText = { importText = true; importPicker = false },
+            onScan = {
+                importPicker = false
+                scanLauncher.launch(
+                    ScanOptions()
+                        .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+                        .setPrompt("对准分享码二维码")
+                        .setBeepEnabled(false)
+                        .setOrientationLocked(false)
+                )
+            },
+            onDismiss = { importPicker = false }
+        )
+    }
+
+    if (importText) {
+        ImportTextDialog(
+            onDismiss = { importText = false },
             onImport = { code, cb -> vm.importShareCode(code, cb) }
         )
     }
 }
 
-/** 生成/复制/分享一段剧情的分享码。 */
+/** 分享方式选择：分享码（文本） or 二维码。 */
 @Composable
-private fun ShareCodeDialog(story: Story, code: String, onDismiss: () -> Unit) {
+private fun SharePickDialog(story: Story, onCode: () -> Unit, onQr: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("分享「${story.title}」") },
+        text = { Text("选择分享方式：给对方「分享码」文本，或生成「二维码」让对方直接扫码。") },
+        confirmButton = {
+            Row {
+                TextButton(onClick = onCode) { Text("分享码") }
+                TextButton(onClick = onQr) { Text("二维码") }
+                TextButton(onClick = onDismiss) { Text("取消") }
+            }
+        }
+    )
+}
+
+/** 分享码（文本）弹窗：复制或系统分享。 */
+@Composable
+private fun ShareTextDialog(story: Story, code: String, onDismiss: () -> Unit) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     var copied by remember { mutableStateOf(false) }
@@ -217,20 +282,11 @@ private fun ShareCodeDialog(story: Story, code: String, onDismiss: () -> Unit) {
         text = {
             Column {
                 Text(
-                    "让对方用手机相机扫下面的二维码，或在剧情库右上角「导入码」粘贴下方文本。",
+                    "把下面的分享码发给朋友，对方在「导入码 → 粘贴分享码」即可导入。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(8.dp))
-                val qr = remember(code) { QrCode.encode(code, 512) }
-                if (qr != null) {
-                    Image(
-                        bitmap = qr.asImageBitmap(),
-                        contentDescription = "分享二维码",
-                        modifier = Modifier.align(Alignment.CenterHorizontally).size(220.dp)
-                    )
-                    Spacer(Modifier.height(8.dp))
-                }
                 OutlinedTextField(
                     value = code,
                     onValueChange = {},
@@ -241,7 +297,7 @@ private fun ShareCodeDialog(story: Story, code: String, onDismiss: () -> Unit) {
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    if (copied) "已复制到剪贴板" else "分享码通常较长，复制或扫码导入均可。",
+                    if (copied) "已复制到剪贴板" else "可复制，或直接调用系统分享。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.outline
                 )
@@ -266,34 +322,79 @@ private fun ShareCodeDialog(story: Story, code: String, onDismiss: () -> Unit) {
     )
 }
 
-/** 拍照/粘贴分享码并导入（只补不覆盖）。 */
+/** 二维码弹窗：仅展示可扫二维码，附带复制文本兜底。 */
 @Composable
-private fun ImportCodeDialog(onDismiss: () -> Unit, onImport: (String, (String) -> Unit) -> Unit) {
+private fun ShareQrDialog(story: Story, code: String, onDismiss: () -> Unit) {
+    val clipboard = LocalClipboardManager.current
+    var copied by remember { mutableStateOf(false) }
+    val qr = remember(code) { QrCode.encode(code, 640) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("二维码 · ${story.title}") },
+        text = {
+            Column {
+                Text(
+                    "让对方用手机相机「扫码」识别，或回到剧情库「导入码 → 扫码识别」。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(8.dp))
+                if (qr != null) {
+                    Image(
+                        bitmap = qr.asImageBitmap(),
+                        contentDescription = "分享二维码",
+                        modifier = Modifier.align(Alignment.CenterHorizontally).size(240.dp)
+                    )
+                    Spacer(Modifier.height(6.dp))
+                }
+                Text(
+                    if (copied) "已复制分享码文本" else "扫码失败时可点「复制文本」手动粘贴。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        },
+        confirmButton = {
+            Row {
+                TextButton(onClick = {
+                    clipboard.setText(AnnotatedString(code))
+                    copied = true
+                }) { Text("复制文本") }
+                TextButton(onClick = onDismiss) { Text("关闭") }
+            }
+        }
+    )
+}
+
+/** 导入方式选择：粘贴分享码 or 扫码识别。 */
+@Composable
+private fun ImportPickDialog(onText: () -> Unit, onScan: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("导入分享码") },
+        text = { Text("选择导入方式：粘贴「分享码」文本，或直接「扫码」识别二维码。") },
+        confirmButton = {
+            Row {
+                TextButton(onClick = onText) { Text("粘贴分享码") }
+                TextButton(onClick = onScan) { Text("扫码识别") }
+                TextButton(onClick = onDismiss) { Text("取消") }
+            }
+        }
+    )
+}
+
+/** 粘贴分享码文本导入（只补不覆盖）。 */
+@Composable
+private fun ImportTextDialog(onDismiss: () -> Unit, onImport: (String, (String) -> Unit) -> Unit) {
     var text by remember { mutableStateOf("") }
     var result by remember { mutableStateOf("") }
-    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { res ->
-        val scanned = res.contents?.trim()
-        if (!scanned.isNullOrBlank()) {
-            text = scanned
-            onImport(scanned) { result = it }
-        }
-    }
-    fun launchScan() {
-        scanLauncher.launch(
-            ScanOptions()
-                .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
-                .setPrompt("对准分享码二维码")
-                .setBeepEnabled(false)
-                .setOrientationLocked(false)
-        )
-    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("导入分享码") },
         text = {
             Column {
                 Text(
-                    "让对方打开分享画面的二维码，用这里「扫码」即可导入；也可粘贴文本（以 WY1: 开头）。剧情节与角色按 id 补入，不覆盖已有内容。",
+                    "粘贴对方发来的分享码（以 WY1: 开头）。剧情与角色按 id 补入，不覆盖已有内容。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -316,7 +417,6 @@ private fun ImportCodeDialog(onDismiss: () -> Unit, onImport: (String, (String) 
         },
         confirmButton = {
             Row {
-                TextButton(onClick = { launchScan() }) { Text("扫码") }
                 TextButton(onClick = {
                     if (text.isNotBlank()) onImport(text) { result = it }
                 }) { Text("导入") }
