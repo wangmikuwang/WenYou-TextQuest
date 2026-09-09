@@ -53,14 +53,15 @@ class WenYouApp : Application() {
                             "presets/wenyou-extended-presets.json"
                         ), markLgbt = true)
                     }
-                    applyPresetAssets(listOf("presets/wenyou-adult-presets.json"), markAdult = true)
+                    applyPresetAssets(listOf("presets/wenyou-adult-presets.json", "presets/wenyou-adult-straight-presets.json"), markAdult = true)
                 }
-                // 文游β：仅内置“非 LGBT”剧情与角色
+                // 文游β：仅内置“非 LGBT”剧情与角色（含直向成人）
                 BuildConfig.BARE_CONTENT -> {
                     applyPresetAssets(listOf(
                         "presets/wenyou-bare-presets.json",
-                        "presets/wenyou-bare2-presets.json"
-                    ), markLgbt = false)
+                        "presets/wenyou-bare2-presets.json",
+                        "presets/wenyou-adult-straight-presets.json"
+                    ), markLgbt = false, markAdult = true)
                 }
             }
             enrichBuiltinInitials()
@@ -83,11 +84,13 @@ class WenYouApp : Application() {
                     "presets/wenyou-bare2-presets.json",
                     "presets/wenyou-romance-presets.json",
                     "presets/wenyou-extended-presets.json",
-                    "presets/wenyou-adult-presets.json"
+                    "presets/wenyou-adult-presets.json",
+                    "presets/wenyou-adult-straight-presets.json"
                 )
                 BuildConfig.BARE_CONTENT -> listOf(
                     "presets/wenyou-bare-presets.json",
-                    "presets/wenyou-bare2-presets.json"
+                    "presets/wenyou-bare2-presets.json",
+                    "presets/wenyou-adult-straight-presets.json"
                 )
                 else -> emptyList()
             }
