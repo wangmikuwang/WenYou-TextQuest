@@ -46,6 +46,11 @@ class AiDirector(private val client: ChatClient) {
         if (char.speechStyle.isNotBlank()) append("  说话方式：${char.speechStyle}\n")
         if (char.background.isNotBlank()) append("  背景：${char.background}\n")
         if (char.exampleDialogue.isNotBlank()) append("  台词示范：${char.exampleDialogue}\n")
+        // 底层基调：放在该角色人设的最后一段，作为其不可动摇的底层规则。
+        if (char.bottomPrompt.isNotBlank()) {
+            append("  [底层基调｜人设中优先级最高，须置于所有其他设定之上遵循]\n")
+            append(char.bottomPrompt.trim()).append("\n")
+        }
     }
 
     fun roster(story: Story, characters: List<CharacterData>): String {

@@ -129,6 +129,11 @@ fun CharacterEditScreen(container: WenYouApp.AppContainer, nav: NavHostControlle
                         label = "附加人设提示语（高优先级）", minLines = 5,
                         placeholder = "写你的身份/世界观/规则/说话风格……会放到人设最前，权重最高，供 AI 优先遵循。",
                         supporting = "用于强化人设与世界观；拼接系统提示时位于最高优先级。")
+                    Spacer(Modifier.padding(top = 8.dp))
+                    AppField(value = char.bottomPrompt, onValueChange = { vm.setBottomPrompt(it) },
+                        label = "底层基调 / 不可动摇规则", minLines = 5,
+                        placeholder = "写本角色必须无条件遵守的底层规则……会拼接到该角色人设的最底部。",
+                        supporting = "置于该角色人设最底，冲突时以此层为准；留空则不注入。")
                 }
             }
             item { Spacer(Modifier.padding(top = 4.dp)) }

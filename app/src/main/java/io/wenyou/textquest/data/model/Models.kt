@@ -61,6 +61,8 @@ data class CharacterData(
     val greeting: String = "",
     /** 附加人设提示语（高优先级）：拼接系统提示时排在最前，用于强化身份/世界观/规则。 */
     val extraPrompt: String = "",
+    /** 底层基调提示语：拼接系统提示时位于该角色人设最底，用于放“不可动摇”的底层规则；留空则不注入。 */
+    val bottomPrompt: String = "",
     /** 是否为 LGBT 向内容（供「内容开关」过滤显示）。 */
     val lgbt: Boolean = false,
     /** 是否为成人向内容。 */
