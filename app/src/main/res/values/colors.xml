@@ -2,5 +2,5 @@
 <resources>
     <!-- 兜底启动色（进入 Compose 前一闪而过的背景），Material You 动态色接管后即被覆盖 -->
     <color name="window_background">#FDF8FD</color>
-    <color name="ic_launcher_background">#4A4458</color>
+    <color name="ic_launcher_background">#0593BB</color>
 </resources>
