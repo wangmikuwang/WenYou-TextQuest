@@ -95,6 +95,7 @@ import io.wenyou.textquest.ui.R
 import io.wenyou.textquest.ui.common.EmojiBadge
 import io.wenyou.textquest.ui.common.GifEncoder
 import io.wenyou.textquest.ui.common.GifShareReader
+import io.wenyou.textquest.ui.common.PairingFrame
 import io.wenyou.textquest.ui.common.Pill
 import io.wenyou.textquest.ui.common.QrCode
 import io.wenyou.textquest.ui.theme.avatarColor
@@ -466,8 +467,12 @@ fun ShareQrDialog(title: String, code: String, onDismiss: () -> Unit) {
                 }) { Text("复制") }
                 if (isMulti) {
                     val gif = remember(chunks) {
-                        val bmps = chunks.mapNotNull { QrCode.encode(it, 620) }
-                        GifEncoder.encode(bmps, 1600)
+                        val frames = mutableListOf<android.graphics.Bitmap>()
+                        chunks.forEach { ch ->
+                            val qr = QrCode.encode(ch, 480) ?: return@forEach
+                            for (g in 1..4) frames += PairingFrame.render(qr, g / 4f, 600)
+                        }
+                        GifEncoder.encode(frames, 420)
                     }
                     TextButton(onClick = {
                         if (gif.isNotEmpty()) {
