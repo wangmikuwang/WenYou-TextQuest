@@ -85,6 +85,9 @@ class StoryEditorViewModel(
     fun setMode(v: StoryMode) = updateStory { it.copy(mode = v) }
     fun setCharacterIds(ids: List<String>) = updateStory { it.copy(characterIds = ids) }
     fun setStartNode(id: String) = updateStory { it.copy(startNodeId = id) }
+    /** 内容分类标记：影响剧情库分类与内容开关过滤。 */
+    fun setLgbt(v: Boolean) = updateStory { it.copy(lgbt = v) }
+    fun setAdult(v: Boolean) = updateStory { it.copy(adult = v) }
 
     fun setWorld(v: String) = updateAi { it.copy(worldSummary = v) }
     fun setTone(v: String) = updateAi { it.copy(tone = v) }

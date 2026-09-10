@@ -2,6 +2,7 @@ package io.wenyou.textquest.ui.vm
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.wenyou.textquest.BuildConfig
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.data.model.AppBundle
 import io.wenyou.textquest.data.model.BottomRule
@@ -10,7 +11,6 @@ import io.wenyou.textquest.data.model.SaveSlot
 import io.wenyou.textquest.data.model.SexualOrientation
 import io.wenyou.textquest.data.model.Story
 import io.wenyou.textquest.data.model.StoryMode
-import io.wenyou.textquest.data.model.storyContentClass
 import io.wenyou.textquest.data.repo.LocalLibrary
 import io.wenyou.textquest.data.repo.SettingsStore
 import io.wenyou.textquest.data.repo.ShareCode
@@ -65,9 +65,14 @@ class LibraryViewModel(container: WenYouApp.AppContainer) : ViewModel() {
     private val _providers = MutableStateFlow(library.providers.value)
     private val _filters = MutableStateFlow(LibraryUi())
 
-    /** 内容开关：false 时隐藏 LGBT 预设内容。 */
-    private val showLgbt = settings.state.map { it.showLgbt }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, settings.state.value.showLgbt)
+    /** 内容开关：false 时隐藏 LGBT 预设内容。
+     *  β 版（BARE_CONTENT）强制关闭——即使通过分享码导入了 LGBT 内容也不显示，保持「β 不含 LGBT 元素」。 */
+    private val showLgbt = settings.state
+        .map { if (BuildConfig.BARE_CONTENT) false else it.showLgbt }
+        .stateIn(
+            viewModelScope, SharingStarted.Eagerly,
+            if (BuildConfig.BARE_CONTENT) false else settings.state.value.showLgbt
+        )
 
     /** 成人内容开关：false 时隐藏 adult 预设内容。 */
     private val adultContent = settings.state.map { it.adultContent }
@@ -96,9 +101,12 @@ class LibraryViewModel(container: WenYouApp.AppContainer) : ViewModel() {
                     }
                 }
                 .let { seq ->
+                    // 按标签归属匹配：同一部作品可同时归入 LGBT 与 18+，两个筛选都能找到它
                     when (f.contentFilter) {
                         StoryContentFilter.ALL -> seq
-                        else -> seq.filter { storyContentClass(it).label == f.contentFilter.label }
+                        StoryContentFilter.ALL_AGE -> seq.filter { !it.lgbt && !it.adult }
+                        StoryContentFilter.LGBT -> seq.filter { it.lgbt }
+                        StoryContentFilter.ADULT -> seq.filter { it.adult }
                     }
                 }
         }.stateIn(viewModelScope, SharingStarted.Eagerly, _stories.value)

@@ -100,6 +100,11 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_PRESET_ORIENT, false)
         set(value) = prefs.edit().putBoolean(KEY_PRESET_ORIENT, value).apply()
 
+    /** 已修正过 β 版「常备预设被误标 18+」的历史数据（一次性）。 */
+    var betaContentFlagFixDone: Boolean
+        get() = prefs.getBoolean(KEY_BETA_FLAG_FIX, false)
+        set(value) = prefs.edit().putBoolean(KEY_BETA_FLAG_FIX, value).apply()
+
     /** 崩溃日志保存目录（SAF 授权的 Documents tree URI；空 = 未选择）。 */
     var crashDirUri: String?
         get() = prefs.getString(KEY_CRASH_DIR, null)
@@ -117,6 +122,7 @@ class SettingsStore(context: Context) {
         const val KEY_PRESET_FILES = "preset_files_applied_v2"
         const val KEY_PRESET_ENRICH = "preset_enrich_initial_v1"
         const val KEY_PRESET_ORIENT = "preset_enrich_orient_v1"
+        const val KEY_BETA_FLAG_FIX = "beta_content_flag_fix_v1"
         const val KEY_CRASH_DIR = "crash_dir_uri"
         const val KEY_SHOW_LGBT = "show_lgbt"
         const val KEY_ADULT = "adult_content"

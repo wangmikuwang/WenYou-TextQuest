@@ -89,7 +89,6 @@ import io.wenyou.textquest.data.model.NodeKind
 import io.wenyou.textquest.data.model.SaveSlot
 import io.wenyou.textquest.data.model.Story
 import io.wenyou.textquest.data.model.StoryMode
-import io.wenyou.textquest.data.model.storyContentClass
 import io.wenyou.textquest.data.repo.ShareCode
 import io.wenyou.textquest.ui.HubScaffold
 import io.wenyou.textquest.ui.R
@@ -690,11 +689,15 @@ private fun StoryCard(story: Story, onEdit: () -> Unit, onPlay: () -> Unit, onSa
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Pill(modeText)
-                val cls = storyContentClass(story)
-                if (!(BuildConfig.BARE_CONTENT && cls == ContentClass.LGBT)) {
-                    Pill(cls.label,
-                        container = if (story.adult) MaterialTheme.colorScheme.tertiaryContainer
-                        else MaterialTheme.colorScheme.secondaryContainer)
+                // 内容标签：LGBT 与 18+ 可同时存在；都没有则标「全年龄」
+                if (!BuildConfig.BARE_CONTENT && story.lgbt) {
+                    Pill(ContentClass.LGBT.label, container = MaterialTheme.colorScheme.tertiaryContainer)
+                }
+                if (story.adult) {
+                    Pill(ContentClass.ADULT.label, container = MaterialTheme.colorScheme.tertiaryContainer)
+                }
+                if (!story.lgbt && !story.adult) {
+                    Pill(ContentClass.ALL_AGE.label, container = MaterialTheme.colorScheme.secondaryContainer)
                 }
                 Pill("${story.nodes.size} 节点")
                 if (aiNodes > 0) Pill("AI×$aiNodes", container = MaterialTheme.colorScheme.tertiaryContainer)

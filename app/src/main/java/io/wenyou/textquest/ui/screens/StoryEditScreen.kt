@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import io.wenyou.textquest.BuildConfig
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.data.model.ChoiceData
 import io.wenyou.textquest.data.model.CompareOp
@@ -61,6 +62,7 @@ import io.wenyou.textquest.ui.common.AppField
 import io.wenyou.textquest.ui.common.ColorDots
 import io.wenyou.textquest.ui.common.Pill
 import io.wenyou.textquest.ui.common.SectionHeader
+import io.wenyou.textquest.ui.common.SwitchRow
 import io.wenyou.textquest.ui.common.TonalCard
 import io.wenyou.textquest.ui.theme.AvatarPalette
 import io.wenyou.textquest.ui.vm.StoryEditorViewModel
@@ -153,6 +155,23 @@ fun StoryEditScreen(container: WenYouApp.AppContainer, nav: NavHostController, s
                         selected = story.startNodeId,
                         onSelect = { vm.setStartNode(it) }
                     )
+                    Spacer(Modifier.height(12.dp))
+                    Text("内容分类", style = MaterialTheme.typography.labelLarge)
+                    Spacer(Modifier.height(4.dp))
+                    SwitchRow(
+                        title = "成人向内容（18+）",
+                        subtitle = "标记后归入「18+」分类，并受「成人内容」开关约束",
+                        checked = story.adult,
+                        onCheckedChange = { vm.setAdult(it) }
+                    )
+                    if (BuildConfig.BUILTIN_CONTENT) {
+                        SwitchRow(
+                            title = "LGBT 向内容",
+                            subtitle = "标记后归入「LGBT」分类，并受「内容开关」约束",
+                            checked = story.lgbt,
+                            onCheckedChange = { vm.setLgbt(it) }
+                        )
+                    }
                 }
             }
 

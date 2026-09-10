@@ -43,6 +43,7 @@ import io.wenyou.textquest.ui.common.AppField
 import io.wenyou.textquest.ui.common.ColorDots
 import io.wenyou.textquest.ui.common.EmojiBadge
 import io.wenyou.textquest.ui.common.SectionHeader
+import io.wenyou.textquest.ui.common.SwitchRow
 import io.wenyou.textquest.ui.common.TonalCard
 import io.wenyou.textquest.ui.theme.AvatarPalette
 import io.wenyou.textquest.ui.theme.avatarColor
@@ -180,6 +181,22 @@ fun CharacterEditScreen(container: WenYouApp.AppContainer, nav: NavHostControlle
                             selected = char.orientation,
                             onSelect = { vm.setOrientation(it) },
                             modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    Spacer(Modifier.padding(top = 12.dp))
+                    Text("内容分类", style = MaterialTheme.typography.labelLarge)
+                    SwitchRow(
+                        title = "成人向内容（18+）",
+                        subtitle = "标记后归入「18+」分类，并受「成人内容」开关约束",
+                        checked = char.adult,
+                        onCheckedChange = { vm.setAdult(it) }
+                    )
+                    if (BuildConfig.BUILTIN_CONTENT) {
+                        SwitchRow(
+                            title = "LGBT 向内容",
+                            subtitle = "标记后归入「LGBT」分类，并受「内容开关」约束",
+                            checked = char.lgbt,
+                            onCheckedChange = { vm.setLgbt(it) }
                         )
                     }
                 }

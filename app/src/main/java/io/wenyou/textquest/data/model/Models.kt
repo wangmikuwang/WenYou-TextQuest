@@ -93,13 +93,6 @@ enum class ContentClass(val label: String) {
     @SerialName("adult") ADULT("18+")
 }
 
-/** 由剧情既有内容开关推导其内容分类（成人优先，其次 LGBT，否则全年龄）。 */
-fun storyContentClass(story: Story): ContentClass = when {
-    story.adult -> ContentClass.ADULT
-    story.lgbt -> ContentClass.LGBT
-    else -> ContentClass.ALL_AGE
-}
-
 /**
  * 底层基调（不可动摇规则）：独立、可复用的规则实体。
  * 一个底层基调可被多个角色选择执行；角色扮演时先执行它，再按人设扮演，冲突时以此层为准。

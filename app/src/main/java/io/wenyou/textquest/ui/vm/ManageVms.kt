@@ -88,6 +88,10 @@ class CharacterEditorViewModel(
 
     fun setOrientation(v: SexualOrientation) = update { it.copy(orientation = v) }
 
+    /** 内容分类标记：影响角色库分类与内容开关过滤。 */
+    fun setLgbt(v: Boolean) = update { it.copy(lgbt = v) }
+    fun setAdult(v: Boolean) = update { it.copy(adult = v) }
+
     fun save() {
         val uiState = _ui.value
         val c = uiState.char ?: current()

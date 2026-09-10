@@ -57,13 +57,19 @@ class WenYouApp : Application() {
                 }
                 // 文游β：仅内置“非 LGBT”剧情与角色（含直向成人）
                 BuildConfig.BARE_CONTENT -> {
+                    // 常备预设保持自身内容分级（不加成人标），仅直向成人预设打成人标，
+                    // 否则全部剧情会被误标 18+，关闭「成人内容」后剧情库将全部消失
                     applyPresetAssets(listOf(
                         "presets/wenyou-bare-presets.json",
-                        "presets/wenyou-bare2-presets.json",
-                        "presets/wenyou-adult-straight-presets.json"
-                    ), markLgbt = false, markAdult = true)
+                        "presets/wenyou-bare2-presets.json"
+                    ), markLgbt = false)
+                    applyPresetAssets(
+                        listOf("presets/wenyou-adult-straight-presets.json"),
+                        markLgbt = false, markAdult = true
+                    )
                 }
             }
+            repairBetaContentFlags()
             enrichBuiltinInitials()
         }
     }
@@ -205,6 +211,42 @@ class WenYouApp : Application() {
         val ruleIds = container.library.bottomRules.value.mapTo(mutableSetOf()) { it.id }
         for (r in bundle.bottomRules) {
             if (ruleIds.add(r.id)) container.library.upsertBottomRule(r)
+        }
+    }
+
+    /**
+     * 一次性修正历史数据：早期 β 版把「常备预设」（bare/bare2）也打上了成人标，
+     * 导致全部剧情/角色被误标 18+，关闭「成人内容」后剧情库会整个消失。
+     *
+     * 仅针对仍属于这两个预设、且当前为 `adult=true 且 lgbt=false` 的条目清除成人标；
+     * 只运行一次，不影响用户自行打标的其它内容。
+     */
+    private suspend fun repairBetaContentFlags() {
+        if (!BuildConfig.BARE_CONTENT) return
+        if (container.settings.betaContentFlagFixDone) return
+        try {
+            val names = listOf("presets/wenyou-bare-presets.json", "presets/wenyou-bare2-presets.json")
+            val presetStoryIds = mutableSetOf<String>()
+            val presetCharIds = mutableSetOf<String>()
+            for (name in names) {
+                val text = assets.open(name).bufferedReader(Charsets.UTF_8).use { it.readText() }
+                val bundle = AppJson.decodeFromString(AppBundle.serializer(), text)
+                bundle.stories.forEach { presetStoryIds += it.id }
+                bundle.characters.forEach { presetCharIds += it.id }
+            }
+            for (s in container.library.stories.value) {
+                if (s.id in presetStoryIds && s.adult && !s.lgbt) {
+                    container.library.upsertStory(s.copy(adult = false))
+                }
+            }
+            for (c in container.library.characters.value) {
+                if (c.id in presetCharIds && c.adult && !c.lgbt) {
+                    container.library.upsertCharacter(c.copy(adult = false))
+                }
+            }
+            container.settings.betaContentFlagFixDone = true
+        } catch (_: Throwable) {
+            // 修正失败不阻塞启动，下次启动重试
         }
     }
 }
