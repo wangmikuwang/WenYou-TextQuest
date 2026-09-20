@@ -204,8 +204,8 @@ fun SettingsScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
                 }
             }
 
-            // 只对话文游α（含预设）：LGBT/非LGBT 内容开关（默认隐藏，连点版本号解锁）
-            if (BuildConfig.BUILTIN_CONTENT && ui.contentUnlocked) {
+            // 内容开关默认隐藏，连点版本号解锁。
+            if (ui.contentUnlocked) {
                 item { SectionHeader("内容偏好") }
                 item {
                     TonalCard {
@@ -222,8 +222,7 @@ fun SettingsScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
                 }
             }
 
-            // 成人内容开关：α 版默认隐藏（连点版本号解锁），β 版保持显示
-            if (!BuildConfig.BUILTIN_CONTENT || ui.contentUnlocked) {
+            if (ui.contentUnlocked) {
                 item { SectionHeader("成人内容") }
                 item {
                     TonalCard {

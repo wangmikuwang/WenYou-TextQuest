@@ -35,22 +35,12 @@ android {
         }
     }
 
-    // 两个可独立安装的版本：alpha（文游α，含 LGBT/多题材预设 + 内容开关）/ beta（文游β，非 LGBT 预设）
     flavorDimensions += "content"
     productFlavors {
-        create("beta") {
-            dimension = "content"
-            applicationIdSuffix = ".beta"
-            versionNameSuffix = "-β"
-            buildConfigField("boolean", "BUILTIN_CONTENT", "false")
-            buildConfigField("boolean", "BARE_CONTENT", "true")
-        }
         create("alpha") {
             dimension = "content"
             applicationIdSuffix = ".alpha"
             versionNameSuffix = "-α"
-            buildConfigField("boolean", "BUILTIN_CONTENT", "true")
-            buildConfigField("boolean", "BARE_CONTENT", "false")
         }
     }
 
@@ -80,7 +70,7 @@ android {
         }
     }
 
-    // APK 产物去掉 debug 字样，直接可用于分发：WenYou-<flavor>-v<版本>.apk
+    // APK 产物去掉 debug 字样，直接可用于分发。
     applicationVariants.all {
         val flavor = name.removeSuffix("Debug").removeSuffix("Release")
         val baseName = "WenYou-$flavor-v$appVersionName"

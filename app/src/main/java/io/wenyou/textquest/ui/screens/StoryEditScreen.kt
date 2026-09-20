@@ -46,7 +46,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
-import io.wenyou.textquest.BuildConfig
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.data.model.ChoiceData
 import io.wenyou.textquest.data.model.CompareOp
@@ -164,14 +163,12 @@ fun StoryEditScreen(container: WenYouApp.AppContainer, nav: NavHostController, s
                         checked = story.adult,
                         onCheckedChange = { vm.setAdult(it) }
                     )
-                    if (BuildConfig.BUILTIN_CONTENT) {
-                        SwitchRow(
-                            title = "LGBT 向内容",
-                            subtitle = "标记后归入「LGBT」分类，并受「内容开关」约束",
-                            checked = story.lgbt,
-                            onCheckedChange = { vm.setLgbt(it) }
-                        )
-                    }
+                    SwitchRow(
+                        title = "LGBT 向内容",
+                        subtitle = "标记后归入「LGBT」分类，并受「内容开关」约束",
+                        checked = story.lgbt,
+                        onCheckedChange = { vm.setLgbt(it) }
+                    )
                 }
             }
 

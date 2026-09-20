@@ -1,4 +1,4 @@
-# 文游 TextQuest（WenYou TextQuest）
+# 文游 α（WenYou TextQuest Alpha）
 
 运行于 Android 的文字冒险游戏平台：支持完全离线的分支剧情，也支持接入第三方大模型 API 获得 AI 场景生成与 AI 导演自由模式。技术栈为 Kotlin、Jetpack Compose、Material 3；所有数据以 JSON 保存在应用私有目录。
 
@@ -124,12 +124,9 @@ sequenceDiagram
 
 `[to:节点id]` 标记仅用于 AI 场景节点接回作者分支；解析失败时整段文本作为正文保留，不中断对局。
 
-## 版本（Product Flavors）
+## 版本
 
-工程定义两个可独立安装的 flavor：
-
-- `alpha`（文游 α）：内置异性恋、男/女同性恋、双性恋、泛性恋与无性恋角色及配套剧情，也包含成人向预设，设置页提供内容开关；
-- `beta`（文游 β）：仅内置非 LGBT 预设，不提供内容开关入口。β 版强制隐藏 LGBT 内容（即使经分享码导入也不显示），常备预设保持全年龄分级，仅直向成人预设标记 18+。
+文游 α 内置异性恋、男/女同性恋、双性恋、泛性恋与无性恋角色及配套剧情，也包含成人向预设，设置页提供内容开关。
 
 构建配置见 `app/build.gradle.kts`。内容开关只影响列表过滤，不删除本地数据；过滤逻辑位于 `ui/vm/LibraryViewModel.kt`。
 
@@ -163,7 +160,6 @@ sequenceDiagram
 
 ```bash
 ./gradlew :app:assembleAlphaDebug
-./gradlew :app:assembleBetaDebug
 ```
 
 构建输出默认位于 Gradle 用户目录的 `caches/wnq-build/WenYouTextQuest`，以避开 OneDrive 文件锁；可用环境变量 `WENYOU_BUILD_DIR` 指定其它位置。
@@ -171,7 +167,7 @@ sequenceDiagram
 回归与静态检查（两个 flavor 共用 11 项 JVM 回归测试）：
 
 ```bash
-./gradlew :app:testAlphaDebugUnitTest :app:testBetaDebugUnitTest :app:lintAlphaDebug :app:lintBetaDebug
+./gradlew :app:testAlphaDebugUnitTest :app:lintAlphaDebug
 ```
 
 测试覆盖资料库并发写入与失败保护、分支存读档、节点循环、角色条件、掷骰边界、AI 正文/思考与状态解析、分享码完整性和解压大小限制。网络测试使用本地拦截响应，不需要 API Key。接管审核记录见 [AUDIT.md](AUDIT.md)。
