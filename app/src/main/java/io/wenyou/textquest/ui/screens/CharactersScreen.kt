@@ -24,8 +24,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -56,6 +58,7 @@ import androidx.navigation.NavHostController
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.data.model.CharacterData
 import io.wenyou.textquest.data.model.SexualOrientation
+import io.wenyou.textquest.data.model.Story
 import io.wenyou.textquest.ui.HubScaffold
 import io.wenyou.textquest.ui.R
 import io.wenyou.textquest.ui.common.EmojiBadge
@@ -74,6 +77,7 @@ import kotlinx.coroutines.withContext
 fun CharactersScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
     val vm: LibraryViewModel = viewModel(factory = Vms.factory { LibraryViewModel(it) })
     val characters by vm.characters.collectAsState()
+    val stories by vm.stories.collectAsState()
     val totalCharacters by vm.totalCharacters.collectAsState()
     val filters by vm.filters.collectAsState()
     var pendingDelete by remember { mutableStateOf<CharacterData?>(null) }
@@ -133,7 +137,9 @@ fun CharactersScreen(container: WenYouApp.AppContainer, nav: NavHostController) 
                     }
                 } else {
                     items(characters, key = { it.id }) { c ->
-                        CharacterCard(c, onEdit = { nav.navigate(R.charEdit(c.id)) },
+                        CharacterCard(c, stories.filter { c.id in it.characterIds },
+                            onPlay = { nav.navigate(R.play(it.id)) },
+                            onEdit = { nav.navigate(R.charEdit(c.id)) },
                             onShare = { sharePicker = c },
                             onDelete = { pendingDelete = c })
                     }
@@ -258,7 +264,14 @@ private fun CharacterEmptyState(title: String, body: String, showReset: Boolean,
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CharacterCard(c: CharacterData, onEdit: () -> Unit, onShare: () -> Unit, onDelete: () -> Unit) {
+private fun CharacterCard(
+    c: CharacterData,
+    stories: List<Story>,
+    onPlay: (Story) -> Unit,
+    onEdit: () -> Unit,
+    onShare: () -> Unit,
+    onDelete: () -> Unit
+) {
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -297,6 +310,25 @@ private fun CharacterCard(c: CharacterData, onEdit: () -> Unit, onShare: () -> U
                 Pill(c.orientation.label, container = MaterialTheme.colorScheme.secondaryContainer)
                 if (c.lgbt) Pill("LGBT", container = MaterialTheme.colorScheme.tertiaryContainer)
                 if (c.adult) Pill("18+", container = MaterialTheme.colorScheme.tertiaryContainer)
+            }
+            Spacer(Modifier.height(10.dp))
+            Text("参演剧情", style = MaterialTheme.typography.labelLarge)
+            if (stories.isEmpty()) {
+                Text("暂无", style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    stories.forEach { story ->
+                        AssistChip(
+                            onClick = { onPlay(story) },
+                            label = { Text(story.title, maxLines = 1) },
+                            leadingIcon = { Icon(Icons.Filled.PlayArrow, "开始剧情") }
+                        )
+                    }
+                }
             }
         }
     }
