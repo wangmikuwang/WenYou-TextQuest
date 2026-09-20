@@ -44,8 +44,8 @@ class LlmException(message: String, cause: Throwable? = null) : Exception(messag
 /** 一次流式/非流式调用的结果：正文 + 思考过程。 */
 data class ChatResult(val content: String, val reasoning: String)
 
-/** 内部：一个增量片段（推理 or 正文）。 */
-private data class Delta(val reasoning: Boolean, val text: String)
+/** 一个响应帧可以同时包含正文和思考。 */
+private data class Delta(val content: String = "", val reasoning: String = "")
 class ChatClient(ok: OkHttpClient = defaultClient()) {
 
     private val client = ok
@@ -95,9 +95,9 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
                                         if (payload == "[DONE]") break
                                         if (payload.isEmpty()) continue
                                         val d = try { extractDelta(profile.kind, AppJson.parseToJsonElement(payload)) } catch (_: Throwable) { null }
-                                        if (d != null && d.text.isNotEmpty() && d.text != "null") {
-                                            if (d.reasoning) { reasoningFull.append(d.text); onReasoning(d.text) }
-                                            else { full.append(d.text); onDelta(d.text) }
+                                        if (d != null && cont.isActive) {
+                                            if (d.reasoning.isNotEmpty()) { reasoningFull.append(d.reasoning); onReasoning(d.reasoning) }
+                                            if (d.content.isNotEmpty()) { full.append(d.content); onDelta(d.content) }
                                         }
                                     } else if (!sawData) {
                                         raw.append(line).append('\n')
@@ -105,9 +105,9 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
                                 }
                                 if (!sawData && raw.isNotBlank()) {
                                     val d = try { extractWhole(profile.kind, AppJson.parseToJsonElement(raw.toString())) } catch (_: Throwable) { null }
-                                    if (d != null && d.text.isNotEmpty() && d.text != "null") {
-                                        if (d.reasoning) { reasoningFull.append(d.text); onReasoning(d.text) }
-                                        else { full.append(d.text); onDelta(d.text) }
+                                    if (d != null && cont.isActive) {
+                                        if (d.reasoning.isNotEmpty()) { reasoningFull.append(d.reasoning); onReasoning(d.reasoning) }
+                                        if (d.content.isNotEmpty()) { full.append(d.content); onDelta(d.content) }
                                     }
                                 }
                                 // 流已结束（[DONE] 或响应流结束）但正文仍为空：视为失败，避免用户看到无提示的空白
@@ -303,19 +303,15 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
             ProviderKind.OPENAI_COMPAT -> {
                 val choice = root["choices"]?.jsonArray?.firstOrNull()?.jsonObject ?: return null
                 val delta = choice["delta"]?.jsonObject
-                val reason = delta?.get("reasoning_content") ?: delta?.get("reasoning")
+                val reason = delta?.get("reasoning_content")?.takeUnless { it is JsonNull } ?: delta?.get("reasoning")
                 val content = delta?.get("content") ?: choice["message"]?.jsonObject?.get("content")
-                when {
-                    reason != null && reason !is JsonNull -> Delta(true, primText(reason))
-                    content != null && content !is JsonNull -> Delta(false, primText(content))
-                    else -> null
-                }
+                Delta(content = primText(content ?: JsonNull), reasoning = primText(reason ?: JsonNull))
             }
             ProviderKind.ANTHROPIC -> {
                 if (root["type"]?.jsonPrimitive?.content != "content_block_delta") return null
                 val t = root["delta"]?.jsonObject?.get("text")
                 if (t == null || t is JsonNull) return null
-                Delta(false, primText(t))
+                Delta(content = primText(t))
             }
             ProviderKind.GEMINI -> {
                 val candidates = root["candidates"]?.jsonArray ?: return null
@@ -323,7 +319,7 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
                 val parts = candidates[0].jsonObject["content"]?.jsonObject?.get("parts")?.jsonArray ?: return null
                 val el = parts.firstOrNull()?.jsonObject?.get("text") ?: return null
                 if (el is JsonNull) return null
-                Delta(false, primText(el))
+                Delta(content = primText(el))
             }
         }
     }
@@ -340,25 +336,21 @@ class ChatClient(ok: OkHttpClient = defaultClient()) {
         return when (kind) {
             ProviderKind.OPENAI_COMPAT -> {
                 val msg = root["choices"]?.jsonArray?.firstOrNull()?.jsonObject?.get("message")?.jsonObject
-                val reason = msg?.get("reasoning_content") ?: msg?.get("reasoning")
+                val reason = msg?.get("reasoning_content")?.takeUnless { it is JsonNull } ?: msg?.get("reasoning")
                 val content = msg?.get("content")
-                when {
-                    reason != null && reason !is JsonNull -> Delta(true, primText(reason))
-                    content != null && content !is JsonNull -> Delta(false, primText(content))
-                    else -> null
-                }
+                Delta(content = primText(content ?: JsonNull), reasoning = primText(reason ?: JsonNull))
             }
             ProviderKind.ANTHROPIC -> {
                 val t = root["content"]?.jsonArray?.firstOrNull()?.jsonObject?.get("text")
                 if (t == null || t is JsonNull) return null
-                Delta(false, primText(t))
+                Delta(content = primText(t))
             }
             ProviderKind.GEMINI -> {
                 val parts = root["candidates"]?.jsonArray?.firstOrNull()?.jsonObject
                     ?.get("content")?.jsonObject?.get("parts")?.jsonArray ?: return null
                 val el = parts.firstOrNull()?.jsonObject?.get("text") ?: return null
                 if (el is JsonNull) return null
-                Delta(false, primText(el))
+                Delta(content = primText(el))
             }
         }
     }

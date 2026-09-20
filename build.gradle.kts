@@ -7,6 +7,8 @@ plugins {
 }
 
 // 构建输出移出 OneDrive（其目录经常被云同步占用句柄导致 AccessDenied/删除失败）。
+val sharedBuildRoot = file(System.getenv("WENYOU_BUILD_DIR")
+    ?: "${System.getProperty("user.home")}/.gradle/caches/wnq-build/${rootProject.name}")
 allprojects {
-    layout.buildDirectory.set(file("C:/Users/21651/Android/wnq-build/${project.name}"))
+    layout.buildDirectory.set(File(sharedBuildRoot, project.name))
 }

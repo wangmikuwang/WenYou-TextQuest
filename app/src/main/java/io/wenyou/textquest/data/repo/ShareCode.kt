@@ -1,10 +1,10 @@
 package io.wenyou.textquest.data.repo
 
-import android.util.Base64
 import io.wenyou.textquest.data.model.AppBundle
-import io.wenyou.textquest.data.model.AppJson
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayOutputStream
+import java.util.Base64
+import java.util.zip.CRC32
 import java.util.zip.Deflater
 import java.util.zip.Inflater
 
@@ -15,6 +15,7 @@ import java.util.zip.Inflater
 object ShareCode {
     private const val PREFIX_COMPRESSED = "WY2:"
     private const val PREFIX_LEGACY = "WY1:"
+    private const val MAX_BYTES = 8 * 1024 * 1024
 
     // 分享专用：忽略未知键、不写默认值，让分享码尽可能小
     private val shareJson = Json {
@@ -25,15 +26,15 @@ object ShareCode {
 
     fun encode(bundle: AppBundle): String {
         val json = shareJson.encodeToString(AppBundle.serializer(), bundle)
-        val compressed = deflate(json.toByteArray(Charsets.UTF_8))
-        val b64 = Base64.encodeToString(
-            compressed,
-            Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP
-        )
+        val bytes = json.toByteArray(Charsets.UTF_8)
+        if (bytes.size > MAX_BYTES) return ""
+        val compressed = deflate(bytes)
+        val b64 = Base64.getUrlEncoder().withoutPadding().encodeToString(compressed)
         return PREFIX_COMPRESSED + b64
     }
 
     fun decode(code: String): AppBundle? {
+        if (code.length > MAX_BYTES * 2) return null
         val cleaned = code.trim()
         val pre = when {
             cleaned.startsWith(PREFIX_COMPRESSED) -> PREFIX_COMPRESSED
@@ -44,10 +45,11 @@ object ShareCode {
             .filterNot { it.isWhitespace() }
         if (payload.isBlank()) return null
         return try {
-            val bytes = Base64.decode(payload, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
+            val bytes = Base64.getUrlDecoder().decode(payload)
             val jsonBytes = if (pre == PREFIX_COMPRESSED) inflate(bytes) else bytes
+            if (jsonBytes.size > MAX_BYTES) return null
             shareJson.decodeFromString(AppBundle.serializer(), String(jsonBytes, Charsets.UTF_8))
-        } catch (_: Throwable) {
+        } catch (_: Exception) {
             null
         }
     }
@@ -67,16 +69,20 @@ object ShareCode {
 
     private fun inflate(bytes: ByteArray): ByteArray {
         val inflater = Inflater(true)
-        inflater.setInput(bytes)
-        val out = ByteArrayOutputStream(bytes.size * 2)
-        val buf = ByteArray(4096)
-        while (!inflater.finished()) {
-            val n = inflater.inflate(buf)
-            if (n == 0 && inflater.needsInput()) break
-            out.write(buf, 0, n)
+        try {
+            inflater.setInput(bytes)
+            val out = ByteArrayOutputStream()
+            val buf = ByteArray(4096)
+            while (!inflater.finished()) {
+                val n = inflater.inflate(buf)
+                require(n > 0 || inflater.finished()) { "分享码压缩数据不完整" }
+                require(out.size() + n <= MAX_BYTES) { "分享内容超过 8 MiB" }
+                out.write(buf, 0, n)
+            }
+            return out.toByteArray()
+        } finally {
+            inflater.end()
         }
-        inflater.end()
-        return out.toByteArray()
     }
 
     // ---- 二维码分片（QR Book）：单张放不下时才用 ----
@@ -84,16 +90,18 @@ object ShareCode {
     const val QR_CHUNK_PREFIX = "wyq:"
     private const val CHUNK_CHARS = 420
 
-    data class QrChunk(val index: Int, val total: Int, val data: String)
+    data class QrChunk(val index: Int, val total: Int, val data: String, val bookId: String? = null)
 
-    /** 把整段分享码拆成若干分片，每片内容为 `wyq:i/N|data`。 */
+    /** 把整段分享码拆成若干分片；bookId 防止同页数的两套二维码被误拼。 */
     fun qrChunks(code: String): List<String> {
         if (code.isBlank()) return emptyList()
         val n = (code.length + CHUNK_CHARS - 1) / CHUNK_CHARS
+        // ponytail: CRC32 prevents accidental book mixing; use a longer digest only if adversarial collisions matter.
+        val bookId = CRC32().apply { update(code.toByteArray(Charsets.UTF_8)) }.value.toString(16).padStart(8, '0')
         return (0 until n).map { i ->
             val start = i * CHUNK_CHARS
             val end = minOf(start + CHUNK_CHARS, code.length)
-            "$QR_CHUNK_PREFIX${i + 1}/$n|" + code.substring(start, end)
+            "$QR_CHUNK_PREFIX$bookId:${i + 1}/$n|" + code.substring(start, end)
         }
     }
 
@@ -104,13 +112,17 @@ object ShareCode {
         val body = cleaned.removePrefix(QR_CHUNK_PREFIX)
         val sep = body.indexOf('|')
         if (sep < 0) return null
-        val parts = body.substring(0, sep).split('/')
+        val header = body.substring(0, sep)
+        val colon = header.indexOf(':')
+        val bookId = if (colon >= 0) header.substring(0, colon).takeIf { it.matches(Regex("[0-9a-f]{8}")) }
+            ?: return null else null
+        val parts = header.substring(colon + 1).split('/')
         if (parts.size != 2) return null
         val idx = parts[0].toIntOrNull() ?: return null
         val total = parts[1].toIntOrNull() ?: return null
         val data = body.substring(sep + 1)
         if (idx < 1 || total < 1 || idx > total || data.isBlank()) return null
-        return QrChunk(idx, total, data)
+        return QrChunk(idx, total, data, bookId)
     }
 
     /** 按序号拼接所有分片，得到完整分享码；未收齐返回 null。 */

@@ -151,10 +151,10 @@ class LibraryViewModel(container: WenYouApp.AppContainer) : ViewModel() {
     fun setContentFilter(f: StoryContentFilter) = _filters.update { it.copy(contentFilter = f) }
     fun setOrientationFilter(o: SexualOrientation?) = _filters.update { it.copy(orientationFilter = o) }
 
-    fun deleteSave(id: String) = viewModelScope.launch { library.deleteSave(id) }
-    fun deleteStory(id: String) = viewModelScope.launch { library.deleteStory(id) }
-    fun deleteCharacter(id: String) = viewModelScope.launch { library.deleteCharacter(id) }
-    fun deleteProvider(id: String) = viewModelScope.launch { library.deleteProvider(id) }
+    fun deleteSave(id: String) = launchLibraryWrite { library.deleteSave(id) }
+    fun deleteStory(id: String) = launchLibraryWrite { library.deleteStory(id) }
+    fun deleteCharacter(id: String) = launchLibraryWrite { library.deleteCharacter(id) }
+    fun deleteProvider(id: String) = launchLibraryWrite { library.deleteProvider(id) }
 
     /** 生成一部剧情的分享码（含其引用的角色及其用到的底层基调；剧情不存在返回空串）。
      *

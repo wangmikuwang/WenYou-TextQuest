@@ -52,9 +52,11 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 
 /** 全屏相机扫码：正方形识别框，ML Kit 识别（对高密度二维码更稳），识别到即回调文本。 */
 @Composable
+@androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
 fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -72,6 +74,7 @@ fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
     val done = remember { AtomicBoolean(false) }
     val collected = remember { ConcurrentHashMap<Int, String>() }
     val pendingTotal = remember { AtomicInteger(0) }
+    val pendingBook = remember { AtomicReference<String?>(null) }
     val scanner = remember {
         BarcodeScanning.getClient(
             BarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
@@ -89,30 +92,32 @@ fun QrScannerDialog(onResult: (String) -> Unit, onDismiss: () -> Unit) {
             // 视为切到了另一套码，重置已收分片，避免跨套拼接出错误内容。
             if (collected.isNotEmpty()) {
                 val knownTotal = pendingTotal.get()
-                val dimensionChanged = chunk.total != knownTotal || chunk.index > chunk.total ||
+                val dimensionChanged = chunk.total != knownTotal ||
+                    (chunk.bookId != null && pendingBook.get() != null && chunk.bookId != pendingBook.get()) ||
+                    chunk.index > chunk.total ||
                     collected.keys.any { it > chunk.total } || chunk.index !in (1..chunk.total)
                 if (dimensionChanged && knownTotal > 0) {
                     collected.clear()
                     pendingTotal.set(chunk.total)
+                    pendingBook.set(chunk.bookId)
                 }
             }
             if (collected.putIfAbsent(chunk.index, chunk.data) == null && pendingTotal.get() == 0) {
                 pendingTotal.set(chunk.total)
+                pendingBook.set(chunk.bookId)
             }
             val total = pendingTotal.get()
             val got = collected.size
             if (total > 0 && got >= total) {
                 val assembled = ShareCode.assembleChunks(collected.toMap(), total)
                 if (assembled != null && done.compareAndSet(false, true)) {
-                    scanning = false
-                    mainExecutor.execute { onResult(assembled) }
+                    mainExecutor.execute { scanning = false; onResult(assembled) }
                 }
             } else {
                 mainExecutor.execute { status = "已识别 $got/${total.coerceAtLeast(1)}，继续扫描下一张…" }
             }
         } else if (done.compareAndSet(false, true)) {
-            scanning = false
-            mainExecutor.execute { onResult(text.trim()) }
+            mainExecutor.execute { scanning = false; onResult(text.trim()) }
         }
     }
 

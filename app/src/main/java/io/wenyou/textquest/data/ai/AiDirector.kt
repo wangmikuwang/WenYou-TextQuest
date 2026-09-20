@@ -82,10 +82,10 @@ private fun sanitizeProse(raw: String): String {
     var t = raw.trim()
     if (t.isEmpty()) return t
     // 模型把「思考+正文」同灌进 text 时，通常以换行/分隔线隔开：先按常见思考段落头切出正文段
-    val cut = listOf("----", "——正文——", "【正文】", "正文如下", "以下是正文", "总结：", "综上所述")
+    val cut = listOf("——正文——", "【正文】", "正文如下", "以下是正文")
     for (c in cut) {
         val idx = t.indexOf(c)
-        if (idx in 1 until t.length - 2) t = t.substring(0, idx).trim()
+        if (idx >= 0) t = t.substring(idx + c.length).trimStart('：', ':', ' ', '\n', '\r')
     }
     t = stripThinkingLeaks(t)
     t = cleanMarkdown(t)
@@ -342,7 +342,7 @@ class AiDirector(private val client: ChatClient) {
                         next = marker?.groupValues?.get(1)?.trim() ?: c.next.trim()
                     )
                 }.take(6)
-                if (text.isNotEmpty()) return sanitizeScene(AiScene(text, choices))
+                if (text.isNotEmpty()) return sanitizeScene(decoded.copy(text = text, choices = choices))
             } catch (_: Throwable) {
                 // 容错：落到下方按字段抽取
             }

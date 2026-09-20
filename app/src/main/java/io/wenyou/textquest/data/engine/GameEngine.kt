@@ -60,7 +60,7 @@ object GameEngine {
         if (conds.isEmpty()) return true
         return conds.all { cond ->
             val charId = cond.charId.trim()
-            val charState = if (charId.isNotEmpty()) state.characterStates[charId] else null
+            val charState = if (charId.isNotEmpty()) state.characterStates[charId] ?: CharacterState() else null
             when (cond.type) {
                 CondType.FLAG_TRUE ->
                     if (charState != null) cond.name in charState.flags else cond.name in state.flags
@@ -118,7 +118,7 @@ object GameEngine {
                 }
                 EffectType.ROLL -> if (name.isNotEmpty()) {
                     val faces = effect.to.toInt().coerceAtLeast(2)
-                    val rolled = Random.nextInt(1, faces + 1)
+                    val rolled = Random.nextInt(faces) + 1
                     variables = variables + (name to rolled.toDouble())
                     notes += "🎲 掷 d$faces → $rolled" + if (name.isNotEmpty()) "（记录到「$name」）" else ""
                 }
@@ -153,7 +153,7 @@ object GameEngine {
             }
             EffectType.ROLL -> {
                 val faces = effect.to.toInt().coerceAtLeast(2)
-                val rolled = Random.nextInt(1, faces + 1)
+                val rolled = Random.nextInt(faces) + 1
                 metrics = setMetric(metrics, name, rolled.toDouble())
                 notes += "🎲 掷 d$faces → $rolled（${CharacterMetrics.label(name)} 更新）"
             }

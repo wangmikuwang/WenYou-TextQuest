@@ -205,7 +205,7 @@ class StoryEditorViewModel(
         }
         val start = if (s.startNodeId in nodes) s.startNodeId else nodes.keys.first()
         val clean = s.copy(id = s.id.ifBlank { UUID.randomUUID().toString() }, title = title, startNodeId = start)
-        viewModelScope.launch {
+        launchLibraryWrite {
             library.upsertStory(clean)
             _ui.update {
                 it.copy(story = clean, isNew = false, message = "已保存「${clean.title}」")

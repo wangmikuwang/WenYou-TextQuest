@@ -8,6 +8,8 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -72,6 +74,15 @@ object R {
 fun WenYouAppRoot(container: WenYouApp.AppContainer) {
     val prefs by container.settings.state.collectAsState()
     WenYouTheme(prefs.themeMode, prefs.dynamicColor) {
+        val writeError by container.library.writeError.collectAsState()
+        if (writeError != null) {
+            AlertDialog(
+                onDismissRequest = container.library::clearWriteError,
+                title = { Text("保存失败") },
+                text = { Text(writeError.orEmpty()) },
+                confirmButton = { TextButton(onClick = container.library::clearWriteError) { Text("知道了") } }
+            )
+        }
         val nav = rememberNavController()
         NavHost(navController = nav, startDestination = R.HOME) {
             composable(R.HOME) { HomeScreen(container, nav) }

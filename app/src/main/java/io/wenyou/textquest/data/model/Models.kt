@@ -303,7 +303,11 @@ data class SessionState(
     val aiEndless: Boolean = false,
     val updatedAt: Long = 0L,
     /** 角色状态（key = 角色 id）。 */
-    val characterStates: Map<String, CharacterState> = emptyMap()
+    val characterStates: Map<String, CharacterState> = emptyMap(),
+    /** AI 已生成、等待玩家选择的动态选项；放进存档以避免读档时重复请求模型。 */
+    val pendingAiChoices: List<ChoiceData> = emptyList(),
+    /** 即使模型没有返回选项，也记录本轮已完成，读档后展示“继续生成”而非自动重跑。 */
+    val aiAwaitingChoice: Boolean = false
 )
 
 @Serializable

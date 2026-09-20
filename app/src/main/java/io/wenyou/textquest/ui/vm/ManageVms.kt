@@ -212,7 +212,7 @@ class ProviderEditorViewModel(
             _ui.update { it.copy(message = "请填写模型名") }
             return
         }
-        viewModelScope.launch {
+        launchLibraryWrite {
             library.upsertProvider(p)
             _ui.update { it.copy(message = "已保存「${p.name}」", isNew = false) }
         }
@@ -221,7 +221,7 @@ class ProviderEditorViewModel(
     fun delete() {
         val id = profile().id
         if (id.isBlank()) return
-        viewModelScope.launch {
+        launchLibraryWrite {
             library.deleteProvider(id)
             _ui.update { it.copy(message = "已删除") }
         }
@@ -295,7 +295,7 @@ class BottomRulesViewModel(container: WenYouApp.AppContainer) : ViewModel() {
         viewModelScope.launch { library.bottomRules.collect { _rules.value = it } }
     }
 
-    fun delete(id: String) = viewModelScope.launch { library.deleteBottomRule(id) }
+    fun delete(id: String) = launchLibraryWrite { library.deleteBottomRule(id) }
 }
 
 class BottomRuleEditorViewModel(
@@ -409,7 +409,7 @@ class SettingsViewModel(container: WenYouApp.AppContainer) : ViewModel() {
     fun importString(text: String) {
         try {
             val bundle = AppJson.decodeFromString(AppBundle.serializer(), text)
-            viewModelScope.launch {
+            launchLibraryWrite {
                 val n = library.importBundle(bundle)
                 _message.value = "导入成功：$n 条数据"
             }

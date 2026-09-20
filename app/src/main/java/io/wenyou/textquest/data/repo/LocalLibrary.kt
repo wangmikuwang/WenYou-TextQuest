@@ -16,15 +16,30 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 /**
  * 轻量本地资料库：所有实体以 JSON 文件存于应用私有目录，
  * 无数据库迁移负担，可直接整体导出/导入。启动时加载进内存，
  * 每次变更写盘并更新 StateFlow。
  */
-class LocalLibrary(context: Context) {
+class LocalLibrary internal constructor(private val dir: File) {
 
-    private val dir: File = File(context.filesDir, "lib").apply { mkdirs() }
+    constructor(context: Context) : this(File(context.filesDir, "lib"))
+
+    init { dir.mkdirs() }
+    // ponytail: 资料库写入共用一把锁；数据量大到阻塞编辑时再改用数据库事务。
+    private val lock = Any()
+    private val _writeError = MutableStateFlow<String?>(null)
+    val writeError: StateFlow<String?> = _writeError.asStateFlow()
+    fun clearWriteError() { _writeError.value = null }
+
+    private suspend fun <T> write(block: () -> T): T = withContext(Dispatchers.IO) {
+        synchronized(lock) { block() }
+    }
     private val providersFile = File(dir, "providers.json")
     private val charactersFile = File(dir, "characters.json")
     private val storiesFile = File(dir, "stories.json")
@@ -45,35 +60,35 @@ class LocalLibrary(context: Context) {
 
     // ---------------- CRUD ----------------
 
-    suspend fun upsertProvider(p: ApiProfile) = withContext(Dispatchers.IO) {
+    suspend fun upsertProvider(p: ApiProfile) = write {
         _providers.value = replaceById(_providers.value, p.id, p).also { persistList(providersFile, it, ApiProfile.serializer()) }
     }
 
-    suspend fun deleteProvider(id: String) = withContext(Dispatchers.IO) {
+    suspend fun deleteProvider(id: String) = write {
         _providers.value = _providers.value.filterNot { it.id == id }.also {
             persistList(providersFile, it, ApiProfile.serializer())
         }
     }
 
-    suspend fun upsertCharacter(c: CharacterData) = withContext(Dispatchers.IO) {
+    suspend fun upsertCharacter(c: CharacterData) = write {
         _characters.value = replaceById(_characters.value, c.id, c).also {
             persistList(charactersFile, it, CharacterData.serializer())
         }
     }
 
-    suspend fun deleteCharacter(id: String) = withContext(Dispatchers.IO) {
+    suspend fun deleteCharacter(id: String) = write {
         _characters.value = _characters.value.filterNot { it.id == id }.also {
             persistList(charactersFile, it, CharacterData.serializer())
         }
     }
 
-    suspend fun upsertStory(s: Story) = withContext(Dispatchers.IO) {
+    suspend fun upsertStory(s: Story) = write {
         _stories.value = replaceById(_stories.value, s.id, s).also {
             persistList(storiesFile, it, Story.serializer())
         }
     }
 
-    suspend fun deleteStory(id: String) = withContext(Dispatchers.IO) {
+    suspend fun deleteStory(id: String) = write {
         _stories.value = _stories.value.filterNot { it.id == id }.also {
             persistList(storiesFile, it, Story.serializer())
         }
@@ -82,25 +97,25 @@ class LocalLibrary(context: Context) {
         }
     }
 
-    suspend fun upsertSave(slot: SaveSlot) = withContext(Dispatchers.IO) {
+    suspend fun upsertSave(slot: SaveSlot) = write {
         _saves.value = replaceById(_saves.value, slot.id, slot).also {
             persistList(savesFile, it, SaveSlot.serializer())
         }
     }
 
-    suspend fun deleteSave(id: String) = withContext(Dispatchers.IO) {
+    suspend fun deleteSave(id: String) = write {
         _saves.value = _saves.value.filterNot { it.id == id }.also {
             persistList(savesFile, it, SaveSlot.serializer())
         }
     }
 
-    suspend fun upsertBottomRule(r: BottomRule) = withContext(Dispatchers.IO) {
+    suspend fun upsertBottomRule(r: BottomRule) = write {
         _bottomRules.value = replaceById(_bottomRules.value, r.id, r).also {
             persistList(bottomRulesFile, it, BottomRule.serializer())
         }
     }
 
-    suspend fun deleteBottomRule(id: String) = withContext(Dispatchers.IO) {
+    suspend fun deleteBottomRule(id: String) = write {
         _bottomRules.value = _bottomRules.value.filterNot { it.id == id }.also {
             persistList(bottomRulesFile, it, BottomRule.serializer())
         }
@@ -114,31 +129,31 @@ class LocalLibrary(context: Context) {
 
     // ---------------- 批量/导入导出 ----------------
 
-    fun bundle(): AppBundle = AppBundle(
+    fun bundle(): AppBundle = synchronized(lock) { AppBundle(
         exportedAt = System.currentTimeMillis(),
         providers = _providers.value,
         characters = _characters.value,
         stories = _stories.value,
         saves = _saves.value,
         bottomRules = _bottomRules.value
-    )
+    ) }
 
-    suspend fun importBundle(bundle: AppBundle): Int = withContext(Dispatchers.IO) {
-        _providers.value = bundle.providers
-        _characters.value = bundle.characters
-        _stories.value = bundle.stories
-        _saves.value = bundle.saves
-        _bottomRules.value = bundle.bottomRules
+    suspend fun importBundle(bundle: AppBundle): Int = write {
         persistList(providersFile, bundle.providers, ApiProfile.serializer())
+        _providers.value = bundle.providers
         persistList(charactersFile, bundle.characters, CharacterData.serializer())
+        _characters.value = bundle.characters
         persistList(storiesFile, bundle.stories, Story.serializer())
+        _stories.value = bundle.stories
         persistList(savesFile, bundle.saves, SaveSlot.serializer())
+        _saves.value = bundle.saves
         persistList(bottomRulesFile, bundle.bottomRules, BottomRule.serializer())
+        _bottomRules.value = bundle.bottomRules
         bundle.providers.size + bundle.characters.size + bundle.stories.size + bundle.saves.size + bundle.bottomRules.size
     }
 
     /** 分享码导入：仅按 id 补入缺失的剧情与角色，不覆盖同名、不触碰用户已有数据。 */
-    suspend fun importShared(bundle: AppBundle): Int = withContext(Dispatchers.IO) {
+    suspend fun importShared(bundle: AppBundle): Int = write {
         val charIds = _characters.value.mapTo(mutableSetOf()) { it.id }
         val newChars = bundle.characters.filter { charIds.add(it.id) }
         val storyIds = _stories.value.mapTo(mutableSetOf()) { it.id }
@@ -149,12 +164,12 @@ class LocalLibrary(context: Context) {
             val chars = _characters.value + newChars
             val stories = _stories.value + newStories
             val rules = _bottomRules.value + newRules
-            _characters.value = chars
-            _stories.value = stories
-            _bottomRules.value = rules
             persistList(charactersFile, chars, CharacterData.serializer())
+            _characters.value = chars
             persistList(storiesFile, stories, Story.serializer())
+            _stories.value = stories
             persistList(bottomRulesFile, rules, BottomRule.serializer())
+            _bottomRules.value = rules
         }
         newChars.size + newStories.size + newRules.size
     }
@@ -178,12 +193,22 @@ class LocalLibrary(context: Context) {
     }
 
     private fun <T> persistList(file: File, list: List<T>, serializer: kotlinx.serialization.KSerializer<T>) {
+        var pending: File? = null
         try {
             val text = AppJson.encodeToString(ListSerializer(serializer), list)
-            file.writeText(text)
-        } catch (t: Throwable) {
-            // 写盘/序列化失败：记录到 crash.log，内存数据仍已更新，避免因此崩溃
-            try { File(file.parentFile, "crash.log").writeText("persistList(${file.name}) failed: $t\n") } catch (_: Throwable) {}
+            val temp = File.createTempFile(file.name, ".pending", dir)
+            pending = temp
+            FileOutputStream(temp).use {
+                it.write(text.toByteArray(Charsets.UTF_8))
+                it.fd.sync()
+            }
+            Files.move(temp.toPath(), file.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        } catch (e: Exception) {
+            val message = "无法保存 ${file.name}：${e.message}"
+            _writeError.value = message
+            throw IOException(message, e)
+        } finally {
+            pending?.delete()
         }
     }
 

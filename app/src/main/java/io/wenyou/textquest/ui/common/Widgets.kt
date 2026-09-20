@@ -186,7 +186,7 @@ fun <T> AppDropdown(
             singleLine = true,
             label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            modifier = Modifier.menuAnchor(androidx.compose.material3.MenuAnchorType.PrimaryNotEditable, enabled).fillMaxWidth(),
             isError = error != null,
             supportingText = error?.let { { Text(it) } }
         )

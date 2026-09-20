@@ -166,6 +166,16 @@ sequenceDiagram
 ./gradlew :app:assembleBetaDebug
 ```
 
+构建输出默认位于 Gradle 用户目录的 `caches/wnq-build/WenYouTextQuest`，以避开 OneDrive 文件锁；可用环境变量 `WENYOU_BUILD_DIR` 指定其它位置。
+
+回归与静态检查（两个 flavor 共用 11 项 JVM 回归测试）：
+
+```bash
+./gradlew :app:testAlphaDebugUnitTest :app:testBetaDebugUnitTest :app:lintAlphaDebug :app:lintBetaDebug
+```
+
+测试覆盖资料库并发写入与失败保护、分支存读档、节点循环、角色条件、掷骰边界、AI 正文/思考与状态解析、分享码完整性和解压大小限制。网络测试使用本地拦截响应，不需要 API Key。接管审核记录见 [AUDIT.md](AUDIT.md)。
+
 版本号按 `x.yy.zz` 规则维护在 `version.properties`；执行 `./gradlew bumpVersion` 递增：
 
 - `bumpVersion`（默认 / `-Pbump=patch`）：仅 bug 修复，`zz` +1（范围 0–99，满 100 进位到 `yy`）。
@@ -195,7 +205,8 @@ app/src/main/java/io/wenyou/textquest/
 
 ## 设计决策与已知限制
 
-- 未引入 Hilt 与 Room：依赖注入在 `WenYouApp` 中手动完成，持久化直接读写 JSON 文件。该方案减少了框架与迁移成本，但所有写入需要由调用方保证串行；备份即复制文件。
+- 未引入 Hilt 与 Room：依赖注入在 `WenYouApp` 中手动完成，持久化直接读写 JSON 文件。资料库内部统一串行写入，先写临时文件再原子替换，成功后才更新对应内存列表；失败会显示错误。多文件整包导入仍不具备跨文件事务，部分文件写入成功后失败时应重新导入完整备份。
+- 分享码兼容 WY1/WY2；解压后的 JSON 上限为 8 MiB，截断或超限负载会拒绝导入。超过分享上限的内容请使用设置中的整包 JSON 导出。
 - AI 上下文取最近 `historyWindow` 条日志，超出部分自动截断，以避免提示词超长。
 - 流式生成结束前不写入对局日志，因此生成过程中无法保存“半句”内容；整段结束后存档即为一致状态。
 - AI 生成正文统一清洗（剥 markdown、剔思考泄漏），仅作用于 AI 生成，作者手写节点文本保留原样。

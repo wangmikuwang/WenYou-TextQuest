@@ -36,11 +36,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
@@ -307,6 +307,15 @@ fun SharePickDialog(title: String, onCode: () -> Unit, onQr: () -> Unit, onDismi
 /** 分享码（文本）弹窗：复制或系统分享。 */
 @Composable
 fun ShareTextDialog(title: String, code: String, onDismiss: () -> Unit) {
+    if (code.isBlank()) {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("无法生成分享码") },
+            text = { Text("内容不存在或超过 8 MiB，请使用设置中的整包导出。") },
+            confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } }
+        )
+        return
+    }
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     var copied by remember { mutableStateOf(false) }
@@ -392,6 +401,10 @@ private fun ConnectingIndicator(label: String, modifier: Modifier = Modifier) {
 /** 二维码弹窗：单张大图优先；单张放不下时自动拆成多张低密度分片；支持保存到本地。 */
 @Composable
 fun ShareQrDialog(title: String, code: String, onDismiss: () -> Unit) {
+    if (code.isBlank()) {
+        ShareTextDialog(title, code, onDismiss)
+        return
+    }
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
     var copied by remember { mutableStateOf(false) }
@@ -431,7 +444,7 @@ fun ShareQrDialog(title: String, code: String, onDismiss: () -> Unit) {
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         IconButton(onClick = { idx = (idx - 1 + chunks.size) % chunks.size }) {
-                            Icon(Icons.Filled.KeyboardArrowLeft, "上一张", tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "上一张", tint = MaterialTheme.colorScheme.primary)
                         }
                         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                             val qr = remember(chunks[idx]) { QrCode.encode(chunks[idx], 620) }
@@ -443,7 +456,7 @@ fun ShareQrDialog(title: String, code: String, onDismiss: () -> Unit) {
                             if (qr != null) QrCard(qr, 260, Modifier.align(Alignment.CenterHorizontally).padding(top = 6.dp))
                         }
                         IconButton(onClick = { idx = (idx + 1) % chunks.size }) {
-                            Icon(Icons.Filled.KeyboardArrowRight, "下一张", tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "下一张", tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                 } else {

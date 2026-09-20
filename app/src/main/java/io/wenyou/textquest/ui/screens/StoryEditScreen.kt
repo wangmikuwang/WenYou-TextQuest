@@ -296,7 +296,8 @@ fun StoryEditScreen(container: WenYouApp.AppContainer, nav: NavHostController, s
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun NodeEditor(vm: StoryEditorViewModel, node: StoryNode, allNodeIds: List<String>) {
-    val chars = vm.ui.value.characters
+    val ui by vm.ui.collectAsState()
+    val chars = ui.characters
     TonalCard {
         AppDropdown(
             label = "节点类型",

@@ -21,7 +21,6 @@ import io.wenyou.textquest.data.model.Story
 import io.wenyou.textquest.data.model.StoryMode
 import io.wenyou.textquest.data.model.StoryNode
 import io.wenyou.textquest.data.repo.LocalLibrary
-import io.wenyou.textquest.data.repo.SettingsStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,20 +59,26 @@ data class PlayUi(
  * 对局驱动状态机：把「分支引擎 + AI 场景 + AI 导演自由模式」统一成
  * ［开始 → 作者选项 / AI 选项 / 自由输入 → 结局/停止］的流转。
  */
-class PlayViewModel(
+class PlayViewModel internal constructor(
     private val storyId: String,
     private val saveId: String,
-    private val container: WenYouApp.AppContainer
+    private val library: LocalLibrary,
+    private val director: AiDirector,
+    private val defaultProviderId: () -> String?
 ) : ViewModel() {
 
-    private val library: LocalLibrary = container.library
-    private val settings: SettingsStore = container.settings
-    private val director: AiDirector = container.director
+    constructor(storyId: String, saveId: String, container: WenYouApp.AppContainer) : this(
+        storyId, saveId, container.library, container.director, { container.settings.defaultProviderId }
+    )
 
     private val _ui = MutableStateFlow(PlayUi())
     val ui: StateFlow<PlayUi> = _ui.asStateFlow()
 
     private var session: SessionState? = null
+        set(value) {
+            field = value
+            _ui.update { it.copy(session = value) }
+        }
 
     /** 当前 AI 生成任务。发起新请求前会取消旧任务，避免重试等场景产生并发覆盖。 */
     private var aiJob: Job? = null
@@ -120,18 +125,24 @@ class PlayViewModel(
             _ui.update {
                 it.copy(stage = PlayStage.DM_INPUT, nodeId = s.currentNodeId,
                     nodeTitle = story.nodes[s.currentNodeId]?.title.orEmpty(),
-                    visibleChoices = emptyList(), pendingAiChoices = emptyList(), providerMissing = provider() == null)
+                    visibleChoices = emptyList(), pendingAiChoices = s.pendingAiChoices.map(::toAiChoice),
+                    providerMissing = provider() == null)
             }
         } else {
-            renderNode()
+            renderNode(logNarration = isFresh)
         }
     }
 
-    private fun renderNode() {
+    private fun renderNode(logNarration: Boolean = true, autoVisited: Set<String> = emptySet()) {
         val ui = _ui.value
         val story = ui.story ?: return
         val s = session ?: return
         val nodeId = s.currentNodeId
+        if (nodeId in autoVisited) {
+            _ui.update { it.copy(stage = PlayStage.STOPPED, stoppedTitle = "剧情循环",
+                stoppedMessage = "无选项节点的自动跳转形成了循环，请在剧情编辑器中修改出口。") }
+            return
+        }
         val node = story.nodes[nodeId]
         if (node == null) {
             _ui.update {
@@ -140,9 +151,12 @@ class PlayViewModel(
             }
             return
         }
+        if (node.kind != NodeKind.AI && (s.aiAwaitingChoice || s.pendingAiChoices.isNotEmpty())) {
+            session = s.copy(pendingAiChoices = emptyList(), aiAwaitingChoice = false)
+        }
         when (node.kind) {
             NodeKind.NARRATION -> {
-                logNodeNarration(node, s)
+                if (logNarration) logNodeNarration(node, s)
                 val choices = GameEngine.visibleChoices(s, story, nodeId)
                 _ui.update {
                     it.copy(stage = PlayStage.AUTHORED, nodeId = nodeId, nodeTitle = node.title,
@@ -150,7 +164,7 @@ class PlayViewModel(
                         providerMissing = provider() == null, aiDelta = "")
                 }
                 if (choices.isEmpty() && node.endTarget.isNotBlank() && node.endTarget != nodeId) {
-                    advanceTo(node.endTarget)
+                    advanceTo(node.endTarget, autoVisited + nodeId)
                 } else if (choices.isEmpty()) {
                     _ui.update {
                         it.copy(stage = PlayStage.STOPPED, stoppedTitle = node.title.ifBlank { "未完待续" },
@@ -160,7 +174,7 @@ class PlayViewModel(
             }
             NodeKind.ENDING -> {
                 val rendered = GameEngine.renderTemplate(node.text, s.variables)
-                appendEntries(listOf(LogEntry(EntryKind.NARRATION, text = rendered)))
+                if (logNarration) appendEntries(listOf(LogEntry(EntryKind.NARRATION, text = rendered)))
                 _ui.update {
                     it.copy(stage = PlayStage.STOPPED, nodeId = nodeId,
                         stoppedTitle = node.title.ifBlank { "结局" },
@@ -168,6 +182,15 @@ class PlayViewModel(
                 }
             }
             NodeKind.AI -> {
+                if (!logNarration && s.aiAwaitingChoice) {
+                    _ui.update {
+                        it.copy(stage = PlayStage.AUTHORED, nodeId = nodeId, nodeTitle = node.title,
+                            visibleChoices = emptyList(), pendingAiChoices = s.pendingAiChoices.map(::toAiChoice),
+                            aiDelta = "", aiTargetExit = node.endTarget.isNotBlank(),
+                            providerMissing = provider() == null)
+                    }
+                    return
+                }
                 _ui.update {
                     it.copy(stage = PlayStage.AI_WORKING, nodeId = nodeId, nodeTitle = node.title,
                         visibleChoices = emptyList(), pendingAiChoices = emptyList(),
@@ -190,13 +213,13 @@ class PlayViewModel(
         }
     }
 
-    private fun advanceTo(target: String) {
+    private fun advanceTo(target: String, autoVisited: Set<String> = emptySet()) {
         val story = _ui.value.story ?: return
-        val s = session ?: return
+        val s = (session ?: return).copy(pendingAiChoices = emptyList(), aiAwaitingChoice = false)
         val arrival = GameEngine.arriveAt(story, s, target)
         session = arrival.state
         logSystem(arrival.notes)
-        renderNode()
+        renderNode(autoVisited = autoVisited)
     }
 
     // ---------------- 玩家动作 ----------------
@@ -211,8 +234,9 @@ class PlayViewModel(
     }
 
     private fun chooseBy(story: Story, choice: ChoiceData, fromNodeId: String) {
-        val s = session ?: return
+        if (session == null) return
         appendEntries(listOf(LogEntry(EntryKind.CHOICE, speaker = "你", text = choice.text)))
+        val s = session ?: return
         val outcome = GameEngine.applyEffects(s, choice.effects)
         session = outcome.state
         logSystem(outcome.notes)
@@ -220,7 +244,7 @@ class PlayViewModel(
         val target = choice.next.ifBlank { "@self" }
         val self = target == "@self" || target == fromNodeId
         if (!self) {
-            val arrival = GameEngine.arriveAt(story, outcome.state, target)
+            val arrival = GameEngine.arriveAt(story, session ?: return, target)
             session = arrival.state
             logSystem(arrival.notes)
             renderNode()
@@ -241,6 +265,7 @@ class PlayViewModel(
         val story = ui.story ?: return
         val choice = ui.pendingAiChoices.getOrNull(index) ?: return
         appendEntries(listOf(LogEntry(EntryKind.CHOICE, speaker = "你", text = choice.text)))
+        session = session?.copy(pendingAiChoices = emptyList(), aiAwaitingChoice = false)
         val next = choice.next.ifBlank { "@self" }
         if (next != "@self" && story.nodes.containsKey(next)) {
             _ui.update { it.copy(pendingAiChoices = emptyList(), aiDelta = "") }
@@ -279,6 +304,7 @@ class PlayViewModel(
         }
         // 已有生成任务在运行时，不再发起新的并发请求（覆盖快速连点等场景）
         if (aiJob?.isActive == true) return
+        session = s.copy(pendingAiChoices = emptyList(), aiAwaitingChoice = false)
         _ui.update { it.copy(stage = PlayStage.AI_WORKING, aiDelta = "", aiReasoningDelta = "", pendingAiChoices = emptyList(), providerMissing = false) }
         launchAiJob { job ->
             try {
@@ -364,6 +390,7 @@ class PlayViewModel(
         // 只有指向真实存在的其它节点才算有效出口，避免死循环 / 跳到不存在的剧情
         val exit = node?.endTarget?.takeIf { it.isNotBlank() && it != node.id && story.nodes.containsKey(it) }
         if (choices.isEmpty()) {
+            session = session?.copy(pendingAiChoices = emptyList(), aiAwaitingChoice = exit == null)
             _ui.update { it.copy(stage = PlayStage.AUTHORED, aiDelta = "", aiReasoningDelta = "", pendingAiChoices = emptyList(), visibleChoices = emptyList()) }
             if (exit != null) {
                 advanceTo(exit)
@@ -371,6 +398,7 @@ class PlayViewModel(
                 _ui.update { it.copy(lastMessage = "AI 没有给出选项——你可以点「继续」让故事延伸。") }
             }
         } else {
+            session = session?.copy(pendingAiChoices = choices.map(::toChoiceData), aiAwaitingChoice = true)
             _ui.update { it.copy(stage = PlayStage.AUTHORED, aiDelta = "", aiReasoningDelta = "", pendingAiChoices = choices, visibleChoices = emptyList()) }
         }
     }
@@ -404,6 +432,7 @@ class PlayViewModel(
         }
         if (_ui.value.stage == PlayStage.AI_WORKING) return
         appendEntries(listOf(LogEntry(EntryKind.CHOICE, speaker = "你", text = trimmed)))
+        session = session?.copy(pendingAiChoices = emptyList(), aiAwaitingChoice = false)
         _ui.update { it.copy(stage = PlayStage.AI_WORKING, aiDelta = "", aiReasoningDelta = "", pendingAiChoices = emptyList()) }
         launchAiJob { job ->
             try {
@@ -415,8 +444,9 @@ class PlayViewModel(
                 if (job.isActive && aiJob === job) {
                     if (scene.text.isNotBlank()) {
                         appendEntries(listOf(LogEntry(EntryKind.DM, speaker = "AI 导演", text = scene.text, reasoning = scene.reasoning)))
-                        applyStateChanges(scene.stateEffects)
                     }
+                    applyStateChanges(scene.stateEffects)
+                    session = session?.copy(pendingAiChoices = scene.choices.map(::toChoiceData), aiAwaitingChoice = true)
                     _ui.update { it.copy(aiDelta = "", aiReasoningDelta = "", stage = PlayStage.DM_INPUT, pendingAiChoices = scene.choices) }
                 }
             } catch (e: CancellationException) {
@@ -433,10 +463,10 @@ class PlayViewModel(
     // ---------------- 存档 / 重开 ----------------
 
     fun saveNow() {
-        viewModelScope.launch {
-            val s = session ?: return@launch
+        launchLibraryWrite {
+            val s = session ?: return@launchLibraryWrite
             val ui = _ui.value
-            val story = ui.story ?: return@launch
+            val story = ui.story ?: return@launchLibraryWrite
             val now = System.currentTimeMillis()
             val name = ui.saveName.ifBlank { "${story.title} · ${s.history.size} 步" }
             val existing = ui.activeSaveId
@@ -455,7 +485,7 @@ class PlayViewModel(
         val fresh = GameEngine.newSession(story, _ui.value.characters)
         _ui.update {
             it.copy(activeSaveId = null, saveName = "", lastMessage = "",
-                pendingAiChoices = emptyList(), aiDelta = "", stoppedTitle = "", stoppedMessage = "")
+                pendingAiChoices = emptyList(), aiDelta = "", aiReasoningDelta = "", stoppedTitle = "", stoppedMessage = "")
         }
         beginPlay(story, fresh, isFresh = true)
     }
@@ -468,7 +498,7 @@ class PlayViewModel(
         val overridden = _ui.value.selectedProviderId
         val def = when {
             overridden != null -> list.firstOrNull { it.id == overridden }
-            else -> list.firstOrNull { it.id == settings.defaultProviderId }
+            else -> list.firstOrNull { it.id == defaultProviderId() }
         }
         return def ?: list.first()
     }
@@ -488,6 +518,8 @@ class PlayViewModel(
         val now = System.currentTimeMillis()
         val stamped = entries.map { if (it.ts == 0L) it.copy(ts = now) else it }
         session = s.copy(history = (s.history + stamped).takeLast(600), updatedAt = now)
-        _ui.update { it.copy(session = session) }
     }
+
+    private fun toChoiceData(choice: AiChoice) = ChoiceData(choice.text, choice.next)
+    private fun toAiChoice(choice: ChoiceData) = AiChoice(choice.text, choice.next)
 }
