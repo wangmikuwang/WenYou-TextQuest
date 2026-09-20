@@ -50,7 +50,8 @@ class WenYouApp : Application() {
                     if (container.settings.state.value.showLgbt) {
                         applyPresetAssets(listOf(
                             "presets/wenyou-romance-presets.json",
-                            "presets/wenyou-extended-presets.json"
+                            "presets/wenyou-extended-presets.json",
+                            "presets/wenyou-diverse-presets.json"
                         ), markLgbt = true)
                     }
                     applyPresetAssets(listOf("presets/wenyou-adult-presets.json", "presets/wenyou-adult-straight-presets.json"), markAdult = true)
@@ -90,6 +91,7 @@ class WenYouApp : Application() {
                     "presets/wenyou-bare2-presets.json",
                     "presets/wenyou-romance-presets.json",
                     "presets/wenyou-extended-presets.json",
+                    "presets/wenyou-diverse-presets.json",
                     "presets/wenyou-adult-presets.json",
                     "presets/wenyou-adult-straight-presets.json"
                 )

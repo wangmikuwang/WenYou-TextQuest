@@ -82,6 +82,7 @@ enum class SexualOrientation(val label: String) {
     @SerialName("lesbian") LESBIAN("女同性恋"),
     @SerialName("bi") BI("双性恋"),
     @SerialName("pan") PAN("泛性恋"),
+    @SerialName("asexual") ASEXUAL("无性恋"),
     @SerialName("unknown") UNKNOWN("未标注")
 }
 

@@ -101,6 +101,23 @@ class RegressionTest {
         assertEquals(LocalLibrary.SharedImportResult(0, 3), library.importShared(bundle))
     }
 
+    @Test fun alphaDiversePresetIsValidAndSelfContained() {
+        val file = listOf(
+            File("src/alpha/assets/presets/wenyou-diverse-presets.json"),
+            File("app/src/alpha/assets/presets/wenyou-diverse-presets.json")
+        ).first(File::isFile)
+        val bundle = AppJson.decodeFromString(AppBundle.serializer(), file.readText())
+        assertEquals(6, bundle.characters.size)
+        assertEquals(3, bundle.stories.size)
+        assertEquals(
+            setOf(SexualOrientation.LESBIAN, SexualOrientation.PAN, SexualOrientation.ASEXUAL),
+            bundle.characters.map { it.orientation }.toSet()
+        )
+        val characterIds = bundle.characters.map { it.id }.toSet()
+        assertTrue(bundle.characters.all { it.lgbt && !it.adult })
+        assertTrue(bundle.stories.all { it.lgbt && !it.adult && it.characterIds.all(characterIds::contains) })
+    }
+
     @Test fun missingCharacterDoesNotReadGlobalVariablesOrFlags() {
         val state = SessionState("s", variables = mapOf("trust" to 99.0), flags = setOf("met"))
         assertFalse(GameEngine.evaluate(state, listOf(Cond(name = "trust", value = 50.0, charId = "missing"))))
