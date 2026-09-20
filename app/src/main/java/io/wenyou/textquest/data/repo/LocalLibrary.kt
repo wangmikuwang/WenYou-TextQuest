@@ -152,8 +152,10 @@ class LocalLibrary internal constructor(private val dir: File) {
         bundle.providers.size + bundle.characters.size + bundle.stories.size + bundle.saves.size + bundle.bottomRules.size
     }
 
+    data class SharedImportResult(val added: Int, val existing: Int)
+
     /** 分享码导入：仅按 id 补入缺失的剧情与角色，不覆盖同名、不触碰用户已有数据。 */
-    suspend fun importShared(bundle: AppBundle): Int = write {
+    suspend fun importShared(bundle: AppBundle): SharedImportResult = write {
         val charIds = _characters.value.mapTo(mutableSetOf()) { it.id }
         val newChars = bundle.characters.filter { charIds.add(it.id) }
         val storyIds = _stories.value.mapTo(mutableSetOf()) { it.id }
@@ -171,7 +173,8 @@ class LocalLibrary internal constructor(private val dir: File) {
             persistList(bottomRulesFile, rules, BottomRule.serializer())
             _bottomRules.value = rules
         }
-        newChars.size + newStories.size + newRules.size
+        val added = newChars.size + newStories.size + newRules.size
+        SharedImportResult(added, bundle.characters.size + bundle.stories.size + bundle.bottomRules.size - added)
     }
 
     // ---------------- 内部工具 ----------------

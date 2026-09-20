@@ -76,6 +76,31 @@ class RegressionTest {
         assertEquals(ShareCode.QrChunk(1, 2, "old"), ShareCode.parseChunk("wyq:1/2|old"))
     }
 
+    @Test fun albumQrSelectionAssemblesOneCompleteBookInAnyOrder() {
+        val noisy = ByteArray(4000).also { java.util.Random(1).nextBytes(it) }
+        val code = ShareCode.encode(AppBundle(characters = listOf(
+            CharacterData("c", "角色", background = Base64.getEncoder().encodeToString(noisy))
+        )))
+        val chunks = ShareCode.qrChunks(code)
+        assertTrue(chunks.size > 1)
+        assertEquals(code, ShareCode.assembleQrTexts(chunks.reversed()))
+        assertNull(ShareCode.assembleQrTexts(chunks.dropLast(1)))
+
+        val other = ShareCode.qrChunks(ShareCode.encode(AppBundle(stories = listOf(Story("s", "剧情")))))
+        assertNull(ShareCode.assembleQrTexts(other + chunks.reversed()))
+    }
+
+    @Test fun repeatedSharedImportReportsExistingContent() = runBlocking {
+        val library = LocalLibrary(temp.newFolder())
+        val bundle = AppBundle(
+            characters = listOf(CharacterData("c", "角色", bottomRuleIds = listOf("r"))),
+            stories = listOf(Story("s", "剧情", characterIds = listOf("c"))),
+            bottomRules = listOf(BottomRule("r", "规则", "内容"))
+        )
+        assertEquals(LocalLibrary.SharedImportResult(3, 0), library.importShared(bundle))
+        assertEquals(LocalLibrary.SharedImportResult(0, 3), library.importShared(bundle))
+    }
+
     @Test fun missingCharacterDoesNotReadGlobalVariablesOrFlags() {
         val state = SessionState("s", variables = mapOf("trust" to 99.0), flags = setOf("met"))
         assertFalse(GameEngine.evaluate(state, listOf(Cond(name = "trust", value = 50.0, charId = "missing"))))

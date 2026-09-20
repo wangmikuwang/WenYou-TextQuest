@@ -3,6 +3,8 @@ package io.wenyou.textquest.ui.common
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -17,6 +19,7 @@ import com.google.zxing.RGBLuminanceSource
 import com.google.zxing.common.HybridBinarizer
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
+import io.wenyou.textquest.data.repo.ShareCode
 import java.io.File
 
 /** 把一段文本编码成二维码位图，支持保存到本地，以及从位图识别二维码文本。 */
@@ -61,6 +64,19 @@ object QrCode {
         } catch (_: Throwable) {
             null
         }
+    }
+
+    /** 识别一张或一套分片二维码图片，并返回完整分享码。 */
+    fun decodeShareImages(context: Context, uris: List<Uri>): String? {
+        val texts = uris.mapNotNull { uri ->
+            runCatching {
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    val bitmap = BitmapFactory.decodeStream(input) ?: return@use null
+                    try { decode(bitmap)?.trim() } finally { bitmap.recycle() }
+                }
+            }.getOrNull()
+        }
+        return ShareCode.assembleQrTexts(texts)
     }
 
     /** 从相机 NV21/YUV420 的 Y 平面识别二维码（支持旋转）。 */

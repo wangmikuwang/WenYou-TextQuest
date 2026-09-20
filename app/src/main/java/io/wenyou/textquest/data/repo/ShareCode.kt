@@ -135,4 +135,19 @@ object ShareCode {
         }
         return sb.toString()
     }
+
+    /** 从相册识别出的若干二维码文本中恢复一份完整分享码。 */
+    fun assembleQrTexts(texts: Iterable<String>): String? {
+        val cleaned = texts.map(String::trim).filter(String::isNotBlank)
+        val complete = cleaned.filterTo(mutableSetOf()) { decode(it) != null }
+
+        val books = cleaned.mapNotNull(::parseChunk).groupBy { it.bookId to it.total }
+        for ((key, chunks) in books) {
+            val byIndex = mutableMapOf<Int, String>()
+            if (chunks.any { byIndex.put(it.index, it.data)?.let { old -> old != it.data } == true }) continue
+            val assembled = assembleChunks(byIndex, key.second) ?: continue
+            if (decode(assembled) != null) complete += assembled
+        }
+        return complete.singleOrNull()
+    }
 }

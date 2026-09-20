@@ -2,7 +2,6 @@ package io.wenyou.textquest.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import android.graphics.BitmapFactory
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,6 +42,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,6 +66,9 @@ import io.wenyou.textquest.ui.common.TonalCard
 import io.wenyou.textquest.ui.theme.avatarColor
 import io.wenyou.textquest.ui.vm.LibraryViewModel
 import io.wenyou.textquest.ui.vm.Vms
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,21 +85,17 @@ fun CharactersScreen(container: WenYouApp.AppContainer, nav: NavHostController) 
     var importText by remember { mutableStateOf(false) }
     var scanning by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val albumPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) {
-            val text = try {
-                context.contentResolver.openInputStream(uri)?.use { ins ->
-                    val bmp = BitmapFactory.decodeStream(ins) ?: return@use null
-                    val t = QrCode.decode(bmp)
-                    bmp.recycle()
-                    t?.trim()
-                }
-            } catch (_: Throwable) { null }
-            if (text.isNullOrBlank()) {
-                android.widget.Toast.makeText(context, "未识别到二维码", android.widget.Toast.LENGTH_SHORT).show()
-            } else {
-                vm.importShareCode(text) { msg ->
-                    android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+    val scope = rememberCoroutineScope()
+    val albumPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (uris.isNotEmpty()) {
+            scope.launch {
+                val text = withContext(Dispatchers.IO) { QrCode.decodeShareImages(context, uris) }
+                if (text.isNullOrBlank()) {
+                    android.widget.Toast.makeText(context, "未识别到完整分享码，请选择同一套的全部二维码", android.widget.Toast.LENGTH_SHORT).show()
+                } else {
+                    vm.importShareCode(text) { msg ->
+                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }

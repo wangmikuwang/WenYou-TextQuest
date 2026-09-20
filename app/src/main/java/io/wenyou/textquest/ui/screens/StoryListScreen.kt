@@ -1,7 +1,6 @@
 package io.wenyou.textquest.ui.screens
 
 import android.content.Intent
-import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.RepeatMode
@@ -67,6 +66,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -82,6 +82,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import io.wenyou.textquest.BuildConfig
 import io.wenyou.textquest.WenYouApp
 import io.wenyou.textquest.data.model.ContentClass
@@ -118,23 +121,19 @@ fun StoryListScreen(container: WenYouApp.AppContainer, nav: NavHostController) {
     var importPicker by remember { mutableStateOf(false) }
     var importText by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var scanning by remember { mutableStateOf(false) }
-    // 从相册选一张含二维码的图片识别
-    val albumPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) {
-            val text = try {
-                context.contentResolver.openInputStream(uri)?.use { ins ->
-                    val bmp = BitmapFactory.decodeStream(ins) ?: return@use null
-                    val t = QrCode.decode(bmp)
-                    bmp.recycle()
-                    t?.trim()
-                }
-            } catch (_: Throwable) { null }
-            if (text.isNullOrBlank()) {
-                android.widget.Toast.makeText(context, "未识别到二维码", android.widget.Toast.LENGTH_SHORT).show()
-            } else {
-                vm.importShareCode(text) { msg ->
-                    android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+    // 单张码选一张，多片码一次选中整套图片
+    val albumPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        if (uris.isNotEmpty()) {
+            scope.launch {
+                val text = withContext(Dispatchers.IO) { QrCode.decodeShareImages(context, uris) }
+                if (text.isNullOrBlank()) {
+                    android.widget.Toast.makeText(context, "未识别到完整分享码，请选择同一套的全部二维码", android.widget.Toast.LENGTH_SHORT).show()
+                } else {
+                    vm.importShareCode(text) { msg ->
+                        android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }
@@ -355,9 +354,10 @@ fun ShareTextDialog(title: String, code: String, onDismiss: () -> Unit) {
                 TextButton(onClick = {
                     val send = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
+                        putExtra(Intent.EXTRA_SUBJECT, title)
                         putExtra(Intent.EXTRA_TEXT, code)
                     }
-                    context.startActivity(Intent.createChooser(send, "分享剧情"))
+                    context.startActivity(Intent.createChooser(send, "分享「$title」"))
                 }) { Text("分享") }
                 TextButton(onClick = onDismiss) { Text("关闭") }
             }
@@ -518,12 +518,12 @@ fun ImportPickDialog(onText: () -> Unit, onScan: () -> Unit, onAlbum: () -> Unit
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("导入分享码") },
-        text = { Text("选择导入方式：粘贴「分享码」文本，或从二维码识别（相机扫码 / 相册选图）。") },
+        text = { Text("选择导入方式：粘贴分享码、相机扫码，或从相册选择一张/整套二维码图片。") },
         confirmButton = {
             Row {
                 TextButton(onClick = onText) { Text("粘贴分享码") }
                 TextButton(onClick = onScan) { Text("相机扫码") }
-                TextButton(onClick = onAlbum) { Text("相册识别") }
+                TextButton(onClick = onAlbum) { Text("相册多选") }
                 TextButton(onClick = onDismiss) { Text("取消") }
             }
         }

@@ -195,8 +195,12 @@ class LibraryViewModel(container: WenYouApp.AppContainer) : ViewModel() {
         }
         viewModelScope.launch {
             try {
-                val n = library.importShared(bundle)
-                onResult("导入成功：新增 $n 条内容")
+                val result = library.importShared(bundle)
+                onResult(
+                    if (result.added == 0) "内容已存在，没有重复导入"
+                    else "导入成功：新增 ${result.added} 条内容" +
+                        if (result.existing > 0) "，跳过 ${result.existing} 条已有内容" else ""
+                )
             } catch (t: Throwable) {
                 onResult("导入失败：${t.message}")
             }
