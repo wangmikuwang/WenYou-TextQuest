@@ -118,6 +118,32 @@ class RegressionTest {
         assertTrue(bundle.stories.all { it.lgbt && !it.adult && it.characterIds.all(characterIds::contains) })
     }
 
+    @Test fun alphaAdultDiversePresetCoversNonStraightOrientations() {
+        val file = listOf(
+            File("src/alpha/assets/presets/wenyou-adult-diverse-presets.json"),
+            File("app/src/alpha/assets/presets/wenyou-adult-diverse-presets.json")
+        ).first(File::isFile)
+        val bundle = AppJson.decodeFromString(AppBundle.serializer(), file.readText())
+        assertEquals(10, bundle.characters.size)
+        assertEquals(5, bundle.stories.size)
+        assertEquals(
+            setOf(
+                SexualOrientation.GAY, SexualOrientation.LESBIAN, SexualOrientation.BI,
+                SexualOrientation.PAN, SexualOrientation.ASEXUAL
+            ),
+            bundle.characters.map { it.orientation }.toSet()
+        )
+        // 成人包必须同时受「成人内容」与「显示 LGBT」两个开关约束
+        assertTrue(bundle.characters.all { it.adult && it.lgbt })
+        assertTrue(bundle.characters.all { it.initial.metrics.isNotEmpty() })
+        assertTrue(bundle.stories.all { it.adult && it.lgbt })
+        val characterIds = bundle.characters.map { it.id }.toSet()
+        assertTrue(bundle.stories.all { it.characterIds.isNotEmpty() && it.characterIds.all(characterIds::contains) })
+        // 每部剧情都要有可渲染的开场节点，并声明成人尺度与自愿边界
+        assertTrue(bundle.stories.all { it.nodes.containsKey(it.startNodeId) })
+        assertTrue(bundle.stories.all { it.ai.directorExtra.contains("18+") })
+    }
+
     @Test fun missingCharacterDoesNotReadGlobalVariablesOrFlags() {
         val state = SessionState("s", variables = mapOf("trust" to 99.0), flags = setOf("met"))
         assertFalse(GameEngine.evaluate(state, listOf(Cond(name = "trust", value = 50.0, charId = "missing"))))

@@ -126,9 +126,9 @@ sequenceDiagram
 
 ## 版本
 
-文游 α 内置异性恋、男/女同性恋、双性恋、泛性恋与无性恋角色及配套剧情，也包含成人向预设，设置页提供内容开关。
+文游 α 内置异性恋、男/女同性恋、双性恋、泛性恋与无性恋角色及配套剧情。成人向（18+）内容覆盖同样的取向：异性向在 `wenyou-adult-straight-presets.json`，男同、女同、双性恋、泛性恋与无性恋各一组在 `wenyou-adult-diverse-presets.json`。设置页提供内容开关。
 
-构建配置见 `app/build.gradle.kts`。内容开关只影响列表过滤，不删除本地数据；过滤逻辑位于 `ui/vm/LibraryViewModel.kt`。
+构建配置见 `app/build.gradle.kts`。内容开关只影响列表过滤，不删除本地数据；过滤逻辑位于 `ui/vm/LibraryViewModel.kt`。成人向的性取向预设受「显示 LGBT」与「成人内容」两个开关共同约束（见 `WenYouApp.onCreate`）。
 
 ### 内容分级
 
@@ -164,13 +164,13 @@ sequenceDiagram
 
 构建输出默认位于 Gradle 用户目录的 `caches/wnq-build/WenYouTextQuest`，以避开 OneDrive 文件锁；可用环境变量 `WENYOU_BUILD_DIR` 指定其它位置。
 
-回归与静态检查（14 项 JVM 回归测试）：
+回归与静态检查（15 项 JVM 回归测试）：
 
 ```bash
 ./gradlew :app:testAlphaDebugUnitTest :app:lintAlphaDebug
 ```
 
-测试覆盖资料库并发写入与失败保护、分支存读档、节点循环、角色条件、掷骰边界、AI 正文/思考与状态解析、分享码完整性和解压大小限制。网络测试使用本地拦截响应，不需要 API Key。接管审核记录见 [AUDIT.md](AUDIT.md)。
+测试覆盖资料库并发写入与失败保护、分支存读档、节点循环、角色条件、掷骰边界、AI 正文/思考与状态解析、分享码完整性和解压大小限制，以及内置预设包的完整性与自洽。网络测试使用本地拦截响应，不需要 API Key。接管审核记录见 [AUDIT.md](AUDIT.md)。
 
 版本号按 `x.yy.zz` 规则维护在 `version.properties`；执行 `./gradlew bumpVersion` 递增：
 
