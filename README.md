@@ -150,7 +150,7 @@ sequenceDiagram
 | `saves.json` | 存档（含日志与角色状态快照） | 对局内 / 主页 |
 | `bottom_rules.json` | 底层基调（不可动摇规则）实体 | 设置 → 底层基调 |
 
-内置题材预设以 `assets/presets/*.json` 提供，启动时检查合并状态：尚未合并过的包按 id 并入资料库，规则为只补不覆盖；已合并的文件记录在 `SettingsStore` 的 `preset_files_applied_v2` 中，避免重复导入。`presets/` 目录下的 PowerShell 脚本可重新生成这些资源。
+内置题材预设以 `assets/presets/*.json` 提供，启动时检查合并状态：尚未合并过的包按 id 并入资料库，规则为只补不覆盖；已合并的文件记录在 `SettingsStore` 的 `preset_files_applied_v2` 中，避免重复导入。打包以 `app/src/alpha/assets/presets/` 下的文件为准；`presets/` 目录只保留历史生成脚本及其旧输出，与打包内容并不一致。
 
 ## 构建
 
@@ -164,7 +164,7 @@ sequenceDiagram
 
 构建输出默认位于 Gradle 用户目录的 `caches/wnq-build/WenYouTextQuest`，以避开 OneDrive 文件锁；可用环境变量 `WENYOU_BUILD_DIR` 指定其它位置。
 
-回归与静态检查（两个 flavor 共用 11 项 JVM 回归测试）：
+回归与静态检查（14 项 JVM 回归测试）：
 
 ```bash
 ./gradlew :app:testAlphaDebugUnitTest :app:lintAlphaDebug
